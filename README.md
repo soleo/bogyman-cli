@@ -1,4 +1,10 @@
-# bogyman
+<p align="center">
+  <img src="assets/bogyman.svg" alt="Bogyman, a scruffy ghost with half-closed eyes" width="160">
+</p>
+
+<h1 align="center">bogyman</h1>
+
+<p align="center">Your agents haunt you. Haunt them back.</p>
 
 Which of your agent sessions needs you, on what, and for how long.
 
