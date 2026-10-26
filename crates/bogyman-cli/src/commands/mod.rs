@@ -3,6 +3,7 @@ pub mod gc;
 pub mod hook;
 pub mod install;
 pub mod ls;
+pub mod send;
 pub mod show;
 pub mod status;
 pub mod version;

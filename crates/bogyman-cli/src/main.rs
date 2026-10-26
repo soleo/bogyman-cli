@@ -92,6 +92,13 @@ enum Cmd {
         #[arg(long)]
         open: bool,
     },
+    /// Deliver a message to a session without attaching to it.
+    Send {
+        /// bogyman id, a unique prefix, the vendor's own id, or the session name.
+        id: String,
+        /// The text to send. Pass `-` to read it from stdin.
+        message: String,
+    },
     /// Hook entry point (internal). Reads one JSON payload from stdin, appends it, exits 0.
     #[command(hide = true)]
     Hook {
@@ -172,6 +179,7 @@ fn main() -> ExitCode {
         Cmd::Waiting => commands::waiting::run(&ctx),
         Cmd::Status { format } => commands::status::run(&ctx, format.as_deref()),
         Cmd::Show { id, open } => commands::show::run(&ctx, &id, open),
+        Cmd::Send { id, message } => commands::send::run(&ctx, &id, &message),
         Cmd::Install {
             claude,
             codex,

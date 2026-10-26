@@ -15,6 +15,7 @@ pub struct Config {
     pub focus: Focus,
     pub store: StoreCfg,
     pub collectors: Collectors,
+    pub send: SendCfg,
 }
 
 #[allow(dead_code)]
@@ -117,6 +118,26 @@ impl Config {
                 }
             },
             Err(_) => Config::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct SendCfg {
+    /// Command that queues a message for a Codex session. `{id}` is the thread
+    /// id and `{message}` the text. Codex's own interface is treated as unstable,
+    /// so this is a template rather than a hard-coded call.
+    pub codex: Vec<String>,
+}
+
+impl Default for SendCfg {
+    fn default() -> Self {
+        SendCfg {
+            codex: ["codex", "queue", "--session", "{id}", "{message}"]
+                .into_iter()
+                .map(String::from)
+                .collect(),
         }
     }
 }
