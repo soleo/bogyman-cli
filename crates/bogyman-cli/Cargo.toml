@@ -1,0 +1,29 @@
+[package]
+name = "bogyman-cli"
+description = "bogyman: which of your agent sessions needs you, on what, and for how long"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "bogyman"
+path = "src/main.rs"
+
+[dependencies]
+bogyman-core.workspace = true
+bogyman-store.workspace = true
+bogyman-collectors.workspace = true
+clap = { version = "4.6.7", features = ["derive"] }
+comfy-table = "8.0.0"
+owo-colors = "4.4.0"
+anyhow = "1.0.104"
+toml = "1.1.8"
+toml_edit = "0.25.17"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
+time = { version = "0.3.45", features = ["serde-well-known", "formatting", "parsing", "macros"] }
+
+[dev-dependencies]
+tempfile = "3.27.0"

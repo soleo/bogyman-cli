@@ -1,0 +1,27 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/bogyman-core",
+  "crates/bogyman-store",
+  "crates/bogyman-collectors",
+  "crates/bogyman-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/soleo/bogyman-cli"
+rust-version = "1.85"
+
+[workspace.dependencies]
+bogyman-core = { path = "crates/bogyman-core" }
+bogyman-store = { path = "crates/bogyman-store" }
+bogyman-collectors = { path = "crates/bogyman-collectors" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+opt-level = "z"
+panic = "abort"

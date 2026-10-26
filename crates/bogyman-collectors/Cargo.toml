@@ -1,0 +1,15 @@
+[package]
+name = "bogyman-collectors"
+description = "Claude Code and Codex collectors for bogyman"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bogyman-core.workspace = true
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+thiserror = "2.0.21"
+time = { version = "0.3.45", features = ["serde-well-known", "formatting", "parsing"] }
