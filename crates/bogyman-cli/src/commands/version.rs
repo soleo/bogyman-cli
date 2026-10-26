@@ -25,15 +25,23 @@ pub const LINE: &str = concat!(
     ")"
 );
 
-/// The ghost from the logo, small enough for a terminal. Scruffy on purpose.
-pub const ART: [&str; 7] = [
-    "     .-~~~-.     ",
-    "   .'  _ _  '.   ",
-    "  /   (-)(-)   \\  ",
-    " |      ..      | ",
-    " |  \\        /  | ",
-    "  \\  '.____.'  /  ",
-    " ~'~.~~'~~'~.~'~  ",
+/// The ghost from the logo, rasterized from `bogyman.svg` into braille cells
+/// (2x4 pixels each) by `scripts/logo-art.py`. Regenerate rather than edit.
+pub const ART: [&str; 14] = [
+    "⠀⠀⠀⠀⠀⠀⠀⠀⣠⣄⣤⡶⣿⡯⣶⣶⠆⠀⠀⠀⠀⠀⠀⠀",
+    "⠀⠀⠀⠀⠀⠀⣠⡾⠛⠋⠁⡀⠀⠀⠉⠉⢿⣷⡤⠀⠀⠀⠀⠀",
+    "⠀⠀⠀⢀⣀⠛⡛⢀⣐⣂⣀⡀⠂⠀⠀⢀⠀⠙⢷⡀⠀⠀⠀⠀",
+    "⠀⠀⠀⣸⡷⠈⠁⢿⣍⣉⣉⣻⡿⢢⡶⠶⢶⣶⣾⣿⠦⠀⠀⠀",
+    "⠀⠀⣼⣿⠁⠀⠀⠀⠈⠉⠉⠁⠀⠈⠛⠲⠶⠚⠋⢻⡇⠀⠀⠀",
+    "⠀⠀⣾⠷⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⡇⠀⠀⠀",
+    "⠀⣼⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢹⣧⠀⠀",
+    "⢰⡿⠀⠁⠀⢠⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⠸⠘⣧⡀",
+    "⣿⠋⠀⠀⠀⣾⣭⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠰⠆⢹⡗",
+    "⣿⢀⡀⡀⢀⣿⠀⠐⠂⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇⣤⣿",
+    "⢿⣿⣿⢿⣼⠏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠁⢀⣿⣷⡟⠛",
+    "⠀⠀⠁⠐⠹⣷⡀⠀⠀⢠⠀⠀⠀⠀⢀⠀⠀⠃⢘⣾⠃⠀⠀⠀",
+    "⠀⠀⠀⢀⣵⠿⠃⠇⠀⠀⠀⢰⣯⡌⠈⠀⠰⢀⠜⠷⣦⡄⠀⠀",
+    "⠀⠀⠀⠿⠷⠶⠶⠶⣾⣤⣤⠿⢙⣷⣄⣒⣤⣀⣴⣮⣭⡷⠃⠀",
 ];
 
 /// Lay the info lines out to the right of the art, row by row.
