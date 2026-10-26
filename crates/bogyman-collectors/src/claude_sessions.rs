@@ -2,7 +2,7 @@
 //! Code writes (busy / waiting / idle). Cheap, needs no daemon, and is the only
 //! signal for sessions whose hooks are disabled.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use bogyman_core::{Event, EventKind, Host, Kind, Source, Vendor};
 use serde_json::Value;
@@ -79,4 +79,26 @@ pub fn poll(dir: &Path, now: OffsetDateTime) -> Vec<Event> {
     }
     out.sort_by_key(|e| e.at);
     out
+}
+
+/// Find the session file for `vendor_session_id` and return its inbox socket
+/// path (`messagingSocketPath`), if the session binds one.
+pub fn socket_for(dir: &Path, vendor_session_id: &str) -> Option<PathBuf> {
+    let rd = std::fs::read_dir(dir).ok()?;
+    for entry in rd.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(raw) = serde_json::from_str::<Value>(&text) else {
+            continue;
+        };
+        if str_field(&raw, &["sessionId"]).as_deref() == Some(vendor_session_id) {
+            return str_field(&raw, &["messagingSocketPath"]).map(PathBuf::from);
+        }
+    }
+    None
 }
