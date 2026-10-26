@@ -1,6 +1,6 @@
 //! Human output: tables on a TTY, TSV when piped, ages like `9m12s`.
 
-use bogyman_core::{Session, State};
+use bogyman_core::{Session, State, strip_control};
 use comfy_table::{Cell, ContentArrangement, Table, presets};
 use owo_colors::OwoColorize;
 use time::OffsetDateTime;
@@ -54,12 +54,16 @@ pub fn waiting_cell(s: &Session) -> String {
 pub fn cwd_cell(s: &Session) -> String {
     s.cwd
         .as_deref()
-        .map(|c| tilde(std::path::Path::new(c)))
+        .map(|c| strip_control(&tilde(std::path::Path::new(c))))
         .unwrap_or_default()
 }
 
 /// Print rows as a table on a TTY, or as header-less TSV when piped.
 pub fn print_rows(ctx: &Ctx, headers: &[&str], rows: Vec<Vec<String>>) {
+    let rows: Vec<Vec<String>> = rows
+        .into_iter()
+        .map(|r| r.into_iter().map(|c| clean_cell(&c)).collect())
+        .collect();
     if !ctx.tty {
         for r in rows {
             println!("{}", r.join("\t"));
@@ -82,6 +86,17 @@ pub fn print_rows(ctx: &Ctx, headers: &[&str], rows: Vec<Vec<String>>) {
     println!("{t}");
 }
 
+/// Belt and braces: every vendor-sourced cell is already stripped by `truncate`
+/// or `cwd_cell`; the only cells allowed to start with ESC are the colored state
+/// labels this module builds itself from constant text.
+fn clean_cell(c: &str) -> String {
+    if c.starts_with('\u{1b}') {
+        c.to_string()
+    } else {
+        strip_control(c)
+    }
+}
+
 /// Blocked first, oldest wait first; then working, done and the rest, most recent first.
 pub fn sort_for_listing(sessions: &mut [Session]) {
     sessions.sort_by(|a, b| {
@@ -95,9 +110,12 @@ pub fn sort_for_listing(sessions: &mut [Session]) {
     });
 }
 
+/// Clip to `max` chars with control characters removed. Every vendor-sourced
+/// string goes through here or `strip_control` before it reaches the terminal.
 pub fn truncate(s: &str, max: usize) -> String {
+    let s = strip_control(s);
     if s.chars().count() <= max {
-        s.to_string()
+        s
     } else {
         let mut out: String = s.chars().take(max.saturating_sub(1)).collect();
         out.push('…');

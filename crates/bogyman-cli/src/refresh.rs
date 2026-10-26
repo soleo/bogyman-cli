@@ -20,7 +20,8 @@ pub fn load_sessions(ctx: &Ctx, poll: bool) -> Result<Vec<Session>> {
     let now = OffsetDateTime::now_utc();
     if poll && ctx.config.collectors.claude_sessions {
         let snapshot = store.load_snapshot()?;
-        for ev in claude_sessions::poll(&ctx.paths.claude_sessions_dir, now) {
+        for mut ev in claude_sessions::poll(&ctx.paths.claude_sessions_dir, now) {
+            ev.sanitize(ctx.config.store.redact);
             let key = Session::key(ev.vendor, &ev.vendor_session_id);
             let fresh = match snapshot.get(&key) {
                 None => true,

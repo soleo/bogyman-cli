@@ -101,6 +101,17 @@ pub fn write_atomic(path: &Path, contents: &str, backup: bool) -> Result<()> {
         path.file_name().unwrap_or_default().to_string_lossy()
     ));
     std::fs::write(&tmp, contents).with_context(|| format!("writing {}", tmp.display()))?;
+    // Keep the original mode so a 0600 settings file never becomes 0644; a new
+    // file is private, since vendor settings can hold tokens.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(path)
+            .map(|m| m.permissions().mode() & 0o7777)
+            .unwrap_or(0o600);
+        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(mode))
+            .with_context(|| format!("setting permissions on {}", tmp.display()))?;
+    }
     std::fs::rename(&tmp, path).with_context(|| format!("replacing {}", path.display()))?;
     Ok(())
 }
@@ -482,6 +493,33 @@ mod tests {
         assert!(notify_is_ours(doc.get("notify").unwrap()));
         let other: toml_edit::DocumentMut = "notify = [\"terminal-notifier\"]\n".parse().unwrap();
         assert!(!notify_is_ours(other.get("notify").unwrap()));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn atomic_write_keeps_mode_and_defaults_to_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let existing = dir.path().join("settings.json");
+        std::fs::write(&existing, "{}").unwrap();
+        std::fs::set_permissions(&existing, std::fs::Permissions::from_mode(0o600)).unwrap();
+        write_atomic(&existing, "{\"a\":1}\n", true).unwrap();
+        assert_eq!(
+            std::fs::metadata(&existing).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert!(
+            existing
+                .with_file_name("settings.json.bogyman-bak")
+                .exists()
+        );
+
+        let fresh = dir.path().join("new").join("hooks.json");
+        write_atomic(&fresh, "{}\n", true).unwrap();
+        assert_eq!(
+            std::fs::metadata(&fresh).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
     }
 
     #[test]
