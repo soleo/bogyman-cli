@@ -42,6 +42,7 @@ entries. Pass `--dry-run` to preview.
 | `bogyman install` / `uninstall` | Register or remove hooks. `--claude`, `--codex`, `--dry-run`. |
 | `bogyman doctor` | Vendor versions, hooks registered, store health, last event per vendor. `--verbose` dumps recent events. |
 | `bogyman gc` | Prune events older than `retention_days` (default 7). |
+| `bogyman version` | Version, git commit, build date, target. Same line as `--version`. |
 | `bogyman hook <vendor>` | Hook entry point, invoked by the vendor. Reads stdin, appends one row, exits 0. |
 
 Every command takes `--json` (schema 1), `--vendor claude|codex`, `--cwd <path>`

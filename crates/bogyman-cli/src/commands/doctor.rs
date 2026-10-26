@@ -196,6 +196,7 @@ pub fn run(ctx: &Ctx, verbose: bool) -> Result<u8> {
             serde_json::to_string_pretty(&serde_json::json!({
                 "schema": bogyman_core::SCHEMA,
                 "bogyman": env!("CARGO_PKG_VERSION"),
+                "build": {"commit": crate::commands::version::GIT_COMMIT, "built_at": crate::commands::version::BUILT_AT, "target": crate::commands::version::TARGET},
                 "store": {"path": ctx.paths.db, "bytes": db_size, "events": events, "sessions": sessions.len(), "live": live},
                 "config": {"path": ctx.paths.config, "present": ctx.paths.config.exists()},
                 "claude": {"found": claude.found, "path": claude.path, "version": claude.version, "meets_minimum": claude.meets_minimum(),
@@ -210,7 +211,7 @@ pub fn run(ctx: &Ctx, verbose: bool) -> Result<u8> {
         return Ok(EXIT_OK);
     }
 
-    println!("bogyman {}", env!("CARGO_PKG_VERSION"));
+    println!("bogyman   {}", crate::commands::version::LINE);
     println!(
         "store     {}  ({} KB, {} events, {} sessions, {} live)",
         tilde(&ctx.paths.db),
