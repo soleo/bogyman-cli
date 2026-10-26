@@ -9,6 +9,7 @@ use bogyman_core::Vendor;
 use bogyman_store::Store;
 use time::OffsetDateTime;
 
+use crate::config::Config;
 use crate::paths::Paths;
 
 const MAX_PAYLOAD: u64 = 4 * 1024 * 1024;
@@ -45,13 +46,15 @@ pub fn run(paths: &Paths, vendor: Vendor, notify: Option<&str>) {
         (Vendor::Codex, true) => codex_hooks::parse_notify(raw, now),
         (Vendor::Codex, false) => codex_hooks::parse_hook(raw, now),
     };
-    let ev = match parsed {
+    let mut ev = match parsed {
         Ok(ev) => ev,
         Err(e) => {
             paths.log(&format!("hook {}: {e}", vendor.label()));
             return;
         }
     };
+    // Privacy rules apply before anything touches disk. Config is one small file.
+    ev.sanitize(Config::load(&paths.config).store.redact);
     match Store::open(&paths.db).and_then(|s| s.append(&ev)) {
         Ok(_) => {}
         Err(e) => paths.log(&format!("hook {}: store: {e}", vendor.label())),

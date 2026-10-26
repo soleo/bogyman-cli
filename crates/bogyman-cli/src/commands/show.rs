@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
-use crate::render::{ago, fmt_age, print_rows, waiting_cell};
+use crate::render::{ago, fmt_age, print_rows, truncate, waiting_cell};
 use crate::{Ctx, EXIT_OK, refresh, resolve};
 
 pub fn run(ctx: &Ctx, id: &str, open: bool) -> Result<u8> {
@@ -24,7 +24,7 @@ pub fn run(ctx: &Ctx, id: &str, open: bool) -> Result<u8> {
     } else {
         let line = |k: &str, v: String| {
             if !v.is_empty() {
-                println!("{k:<14}{v}");
+                println!("{k:<14}{}", truncate(&v, 400));
             }
         };
         line("id", s.id.clone());

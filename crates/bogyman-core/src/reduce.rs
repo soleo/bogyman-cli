@@ -590,6 +590,15 @@ mod tests {
     }
 
     #[test]
+    fn control_characters_are_stripped() {
+        assert_eq!(
+            clip_detail("a\u{1b}[2Jb\nc\u{7f}d\u{2028}e"),
+            "a [2Jb c d e"
+        );
+        assert_eq!(crate::strip_control("plain"), "plain");
+    }
+
+    #[test]
     fn detail_is_clipped_to_200_chars() {
         let long = "x".repeat(500);
         assert_eq!(clip_detail(&long).chars().count(), 200);
