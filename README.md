@@ -39,6 +39,7 @@ entries. Pass `--dry-run` to preview.
 | `bogyman waiting` | Blocked sessions only, oldest wait first. Exit 3 when empty, so it works in `&&` chains. |
 | `bogyman status` | One line for prompts: `⏳2 ▶3 ✓1`. Cache only. `--format '{blocked} waiting'` to template. |
 | `bogyman show <id>` | Full record plus the last 20 events. `<id>` is a bogyman id, a unique prefix, the vendor id, or the name. |
+| `bogyman send <id> "msg"` | Deliver a message without attaching. Claude Code sessions get it over their inbox socket and read it between tool calls, or start a turn with it when idle. Codex goes through the `[send] codex` command template. `-` reads the message from stdin. |
 | `bogyman install` / `uninstall` | Register or remove hooks. `--claude`, `--codex`, `--dry-run`. |
 | `bogyman doctor` | Vendor versions, hooks registered, store health, last event per vendor. `--verbose` dumps recent events. |
 | `bogyman gc` | Prune events older than `retention_days` (default 7). |
@@ -69,6 +70,9 @@ redact = false        # true drops free-text detail (what a session waits on)
 
 [collectors]
 claude_sessions = true   # poll ~/.claude/sessions/*.json on each query
+
+[send]
+codex = ["codex", "queue", "--session", "{id}", "{message}"]   # how `send` reaches a Codex session
 ```
 
 ## Development
