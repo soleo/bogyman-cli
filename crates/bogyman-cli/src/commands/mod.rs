@@ -5,4 +5,5 @@ pub mod install;
 pub mod ls;
 pub mod show;
 pub mod status;
+pub mod version;
 pub mod waiting;

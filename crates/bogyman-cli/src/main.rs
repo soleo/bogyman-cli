@@ -27,7 +27,7 @@ pub const EXIT_VENDOR_UNAVAILABLE: u8 = 4;
 #[derive(Parser, Debug)]
 #[command(
     name = "bogyman",
-    version,
+    version = commands::version::LINE,
     about = "Which of your agent sessions needs you, on what, and for how long.",
     long_about = "bogyman watches the Claude Code and Codex sessions you already started and \
 keeps one list: who is blocked, on what, and since when.\n\n\
@@ -129,6 +129,8 @@ enum Cmd {
     },
     /// Prune events and dead sessions older than the retention window.
     Gc,
+    /// Show which build this is: version, commit, build date, target.
+    Version,
 }
 
 /// Everything a command needs besides its own arguments.
@@ -182,6 +184,7 @@ fn main() -> ExitCode {
         } => commands::install::uninstall(&ctx, claude, codex, dry_run),
         Cmd::Doctor { verbose } => commands::doctor::run(&ctx, verbose),
         Cmd::Gc => commands::gc::run(&ctx),
+        Cmd::Version => commands::version::run(&ctx),
         Cmd::Hook { .. } => unreachable!(),
     };
 
