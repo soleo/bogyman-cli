@@ -17,22 +17,21 @@ fn main() {
     let commit = git(&["rev-parse", "--short=9", "HEAD"]).unwrap_or_else(|| "unknown".into());
     let dirty = git(&["status", "--porcelain", "--untracked-files=no"]).is_some();
     let commit_date = git(&["log", "-1", "--format=%cd", "--date=short"]).unwrap_or_default();
-    let built_at = std::env::var("SOURCE_DATE_EPOCH")
+    // Build date in the builder's local calendar day. SOURCE_DATE_EPOCH (for
+    // reproducible builds) is honored as a UTC date; otherwise ask the shell for
+    // the local date and fall back to UTC where `date` is unavailable.
+    let built_at = match std::env::var("SOURCE_DATE_EPOCH")
         .ok()
         .and_then(|s| s.parse::<u64>().ok())
-        .or_else(|| {
+    {
+        Some(secs) => utc_date(secs),
+        None => local_date().unwrap_or_else(|| {
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .ok()
-                .map(|d| d.as_secs())
-        })
-        .map(|secs| {
-            // Civil date from a unix timestamp; enough for a build stamp.
-            let days = secs / 86_400;
-            let (y, m, d) = civil_from_days(days as i64);
-            format!("{y:04}-{m:02}-{d:02}")
-        })
-        .unwrap_or_default();
+                .map(|d| utc_date(d.as_secs()))
+                .unwrap_or_default()
+        }),
+    };
     let rustc = Command::new(std::env::var("RUSTC").unwrap_or_else(|_| "rustc".into()))
         .arg("--version")
         .output()
@@ -60,6 +59,17 @@ fn main() {
         println!("cargo:rerun-if-changed={p}");
     }
     println!("cargo:rerun-if-env-changed=SOURCE_DATE_EPOCH");
+}
+
+fn local_date() -> Option<String> {
+    let out = Command::new("date").arg("+%Y-%m-%d").output().ok()?;
+    let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (out.status.success() && s.len() == 10).then_some(s)
+}
+
+fn utc_date(secs: u64) -> String {
+    let (y, m, d) = civil_from_days((secs / 86_400) as i64);
+    format!("{y:04}-{m:02}-{d:02}")
 }
 
 // Howard Hinnant's days-to-civil algorithm.
