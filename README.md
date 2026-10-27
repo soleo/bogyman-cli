@@ -78,7 +78,8 @@ retention_days = 7
 redact = false        # true drops free-text detail (what a session waits on)
 
 [collectors]
-claude_sessions = true   # poll ~/.claude/sessions/*.json on each query
+claude_sessions = true     # poll ~/.claude/sessions/*.json on each query
+claude_transcript = true   # read each live session's transcript tail for the model in use
 
 [send]
 codex = ["codex", "queue", "--session", "{id}", "{message}"]   # how `send` reaches a Codex session

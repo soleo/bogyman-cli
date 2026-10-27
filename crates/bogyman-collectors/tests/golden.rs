@@ -3,7 +3,7 @@
 
 use std::path::PathBuf;
 
-use bogyman_collectors::{claude_hooks, claude_sessions, codex_hooks};
+use bogyman_collectors::{claude_hooks, claude_sessions, claude_transcript, codex_hooks};
 use bogyman_core::{EventKind, Host, Kind, Source, Vendor};
 use serde_json::Value;
 use time::OffsetDateTime;
@@ -185,4 +185,38 @@ fn codex_payloads_map_to_the_expected_events() {
     let ev =
         codex_hooks::parse_notify(fixture("codex/0.130/notify_unknown_type.json"), now()).unwrap();
     assert!(matches!(ev.kind, EventKind::Unknown { ref name } if name == "something-new"));
+}
+
+#[test]
+fn transcript_tail_yields_the_last_models_name_and_the_entrypoint() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/claude/2.1/transcript_tail.jsonl");
+    let tail = claude_transcript::read_tail(&path).unwrap();
+    assert_eq!(tail.model.as_deref(), Some("claude-opus-5-5"));
+    assert_eq!(tail.host, Some(Host::Terminal));
+
+    // A truncated first line (mid-file start) and trailing non-assistant lines are fine.
+    let text = "ssion\":\"x\"}\n{\"type\":\"assistant\",\"message\":{\"model\":\"claude-sonnet-5-5\"}}\n{\"type\":\"progress\"}\n";
+    assert_eq!(
+        claude_transcript::parse_tail(text)
+            .unwrap()
+            .model
+            .as_deref(),
+        Some("claude-sonnet-5-5")
+    );
+    assert!(claude_transcript::parse_tail("{\"type\":\"user\"}\n").is_none());
+
+    assert_eq!(
+        claude_transcript::project_dir_name("/Users/x/dev/tag-web"),
+        "-Users-x-dev-tag-web"
+    );
+    let p = claude_transcript::transcript_path(
+        std::path::Path::new("/home/u/.claude"),
+        "/srv/app.v2",
+        "abc",
+    );
+    assert_eq!(
+        p,
+        PathBuf::from("/home/u/.claude/projects/-srv-app-v2/abc.jsonl")
+    );
 }

@@ -3,7 +3,7 @@ use bogyman_core::Session;
 use time::{Duration, OffsetDateTime};
 
 use crate::render::{
-    cwd_cell, fmt_age, print_rows, sort_for_listing, state_cell, truncate, waiting_cell,
+    cwd_cell, fmt_age, model_cell, print_rows, sort_for_listing, state_cell, truncate, waiting_cell,
 };
 use crate::{Ctx, EXIT_OK, refresh};
 
@@ -43,6 +43,7 @@ fn once(ctx: &Ctx, all: bool) -> Result<u8> {
             "VENDOR",
             "HOST",
             "NAME",
+            "MODEL",
             "STATE",
             "WAITING FOR",
             "AGE",
@@ -65,6 +66,7 @@ fn row(ctx: &Ctx, s: &Session, now: OffsetDateTime) -> Vec<String> {
         s.vendor.label().into(),
         s.host.label().into(),
         name,
+        model_cell(s),
         state_cell(ctx, s.state, s.stale),
         truncate(&waiting_cell(s), 40),
         fmt_age(s.age_secs(now)),

@@ -9,6 +9,7 @@ pub mod reduce;
 pub use event::{Event, EventKind};
 pub use model::{
     Host, Kind, SCHEMA, Session, Source, State, Tasks, Terminal, Tokens, Vendor, WaitingFor,
+    assign_unique_ids,
 };
 pub use reduce::{Reducer, ReducerOptions, poll_state};
 

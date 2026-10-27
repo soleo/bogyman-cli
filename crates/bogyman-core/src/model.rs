@@ -211,10 +211,16 @@ impl Session {
 
     /// Build the short id shown to users: vendor prefix + first 8 chars of the vendor id.
     pub fn short_id(vendor: Vendor, vendor_session_id: &str) -> String {
+        Session::short_id_len(vendor, vendor_session_id, 8)
+    }
+
+    /// Like `short_id` with a chosen number of id characters. Time-ordered ids
+    /// (Codex threads are UUIDv7) share a prefix, so colliding sessions get more.
+    pub fn short_id_len(vendor: Vendor, vendor_session_id: &str, chars: usize) -> String {
         let head: String = vendor_session_id
             .chars()
             .filter(|c| c.is_ascii_alphanumeric())
-            .take(8)
+            .take(chars)
             .collect::<String>()
             .to_ascii_lowercase();
         format!("{}-{}", vendor.prefix(), head)
@@ -237,6 +243,40 @@ impl Session {
             return r.clone();
         }
         self.id.clone()
+    }
+}
+
+/// Make every session's short id unique: start at 8 characters and lengthen
+/// only the ones that collide (12, 16, then the whole id). Deterministic for a
+/// given set of sessions, so ids stay stable until a colliding session appears.
+pub fn assign_unique_ids(sessions: &mut [Session]) {
+    use std::collections::HashMap;
+    let mut len: Vec<usize> = vec![8; sessions.len()];
+    for round in [8usize, 12, 16, 64] {
+        let mut seen: HashMap<String, Vec<usize>> = HashMap::new();
+        for (i, s) in sessions.iter().enumerate() {
+            let id = Session::short_id_len(s.vendor, &s.vendor_session_id, len[i]);
+            seen.entry(id).or_default().push(i);
+        }
+        let mut clashed = false;
+        for idxs in seen.values().filter(|v| v.len() > 1) {
+            for &i in idxs {
+                if len[i] == round {
+                    len[i] = match round {
+                        8 => 12,
+                        12 => 16,
+                        _ => 64,
+                    };
+                    clashed = true;
+                }
+            }
+        }
+        if !clashed {
+            break;
+        }
+    }
+    for (i, s) in sessions.iter_mut().enumerate() {
+        s.id = Session::short_id_len(s.vendor, &s.vendor_session_id, len[i]);
     }
 }
 
