@@ -20,9 +20,19 @@ and notifications are later milestones.
 
 ## Install
 
-From a [release](https://github.com/soleo/bogyman-cli/releases): download the
-tarball for your platform (macOS arm64 or x86_64, Linux x86_64 or arm64), check
-it against `SHA256SUMS`, and put `bogyman` on your PATH. Or build from source:
+One line, no package manager:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/soleo/bogyman-cli/main/install.sh | sh
+```
+
+It picks the tarball for your OS and CPU (macOS arm64 or x86_64, Linux x86_64
+or arm64) from the latest [release](https://github.com/soleo/bogyman-cli/releases),
+verifies it against `SHA256SUMS`, and installs `bogyman` into `~/.local/bin`.
+Set `BOGYMAN_INSTALL_DIR` to install elsewhere, or `BOGYMAN_VERSION=v0.1.0` to
+pin a version. Prefer to read it first? `install.sh` is at the repo root.
+
+Or build from source:
 
 ```sh
 cargo install --path crates/bogyman-cli   # puts `bogyman` in ~/.cargo/bin
