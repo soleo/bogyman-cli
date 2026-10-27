@@ -20,8 +20,17 @@ and notifications are later milestones.
 
 ## Install
 
+From a [release](https://github.com/soleo/bogyman-cli/releases): download the
+tarball for your platform (macOS arm64 or x86_64, Linux x86_64 or arm64), check
+it against `SHA256SUMS`, and put `bogyman` on your PATH. Or build from source:
+
 ```sh
 cargo install --path crates/bogyman-cli   # puts `bogyman` in ~/.cargo/bin
+```
+
+Then:
+
+```sh
 bogyman install                            # wires Claude Code (+ Codex) hooks
 bogyman doctor                             # confirms events arrive
 ```
@@ -89,6 +98,19 @@ user. Add a fixture when a vendor adds or changes an event.
 The ghost in `bogyman version` is rendered from `bogyman.svg` by
 `scripts/logo-art.py` (see its docstring); regenerate it rather than editing
 the array by hand.
+
+## Releasing
+
+Bump `version` in the workspace `Cargo.toml`, commit, then tag and push:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The release workflow checks the tag against `Cargo.toml`, runs fmt, clippy and
+tests, builds all four targets, and publishes a GitHub release with tarballs
+and a `SHA256SUMS` file. A tag with a suffix such as `v0.2.0-beta.1` becomes a
+pre-release.
 
 Crates: `bogyman-core` (session model, events, reducer), `bogyman-store`
 (SQLite), `bogyman-collectors` (vendor parsers), `bogyman-cli` (the binary).
