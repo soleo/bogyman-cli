@@ -72,7 +72,9 @@ impl Reducer {
     }
 
     pub fn into_sessions(self) -> Vec<Session> {
-        self.sessions.into_values().collect()
+        let mut v: Vec<Session> = self.sessions.into_values().collect();
+        crate::model::assign_unique_ids(&mut v);
+        v
     }
 }
 
@@ -203,6 +205,18 @@ fn apply_event(s: &mut Session, ev: &Event, redact: bool) {
             }
         }
         s.observed_at = s.observed_at.max(ev.at);
+        return;
+    }
+
+    if let EventKind::TranscriptPoll { model, host } = &ev.kind {
+        if model.is_some() {
+            s.model = model.clone();
+        }
+        if let Some(h) = host
+            && s.host == Host::Unknown
+        {
+            s.host = *h;
+        }
         return;
     }
 
@@ -356,7 +370,9 @@ fn apply_event(s: &mut Session, ev: &Event, redact: bool) {
                 set_state(s, State::Unknown, None, None, ev.at, Source::Hook);
             }
         }
-        EventKind::StatusPoll { .. } => unreachable!("handled above"),
+        EventKind::StatusPoll { .. } | EventKind::TranscriptPoll { .. } => {
+            unreachable!("handled above")
+        }
     }
 }
 
@@ -572,6 +588,57 @@ mod tests {
         let s = only(r);
         assert_eq!(s.state, State::Working);
         assert!(s.stale);
+    }
+
+    #[test]
+    fn transcript_poll_sets_model_without_touching_state() {
+        let mut r = Reducer::default();
+        r.apply(&ev(
+            T0,
+            EventKind::PermissionRequest {
+                tool: "Bash".into(),
+                detail: None,
+            },
+        ));
+        let mut tp = ev(
+            T0 + Duration::seconds(5),
+            EventKind::TranscriptPoll {
+                model: Some("claude-opus-5-5".into()),
+                host: Some(Host::Terminal),
+            },
+        );
+        tp.source = Source::Poll;
+        r.apply(&tp);
+        let s = only(r);
+        assert_eq!(s.model.as_deref(), Some("claude-opus-5-5"));
+        assert_eq!(s.host, Host::Terminal);
+        assert_eq!(s.state, State::Blocked);
+        assert_eq!(s.since, T0);
+        assert_eq!(
+            s.observed_at, T0,
+            "a transcript read is not a liveness signal"
+        );
+    }
+
+    #[test]
+    fn colliding_short_ids_get_longer() {
+        let mut r = Reducer::default();
+        for sid in [
+            "01a17abd-085b-7d12-b8ba-48afcdfd4f9c",
+            "01a17abd-8964-7882-92af-8d40a5238a93",
+            "01a17abe-72c2-7551-9e03-b5ba2f1ee518",
+        ] {
+            let mut e = ev(T0, EventKind::PromptSubmitted);
+            e.vendor = Vendor::Codex;
+            e.vendor_session_id = sid.into();
+            r.apply(&e);
+        }
+        let mut ids: Vec<String> = r.into_sessions().into_iter().map(|s| s.id).collect();
+        ids.sort();
+        assert_eq!(
+            ids,
+            vec!["cx-01a17abd085b", "cx-01a17abd8964", "cx-01a17abe"]
+        );
     }
 
     #[test]
