@@ -127,7 +127,8 @@ mod tests {
         let cols: Vec<usize> = rows[..3].iter().map(|r| r.find("line").unwrap()).collect();
         assert!(cols.iter().all(|c| *c == cols[0]));
         // More lines than art rows still all print.
-        let many: Vec<String> = (0..9).map(|i| i.to_string()).collect();
-        assert_eq!(with_art(&many).len(), 9);
+        let n = ART.len() + 2;
+        let many: Vec<String> = (0..n).map(|i| i.to_string()).collect();
+        assert_eq!(with_art(&many).len(), n);
     }
 }
