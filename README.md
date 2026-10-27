@@ -86,5 +86,9 @@ Vendor payload shapes live under `tests/fixtures/<vendor>/<version>/` and are
 checked by golden tests, so a vendor format change fails a test rather than a
 user. Add a fixture when a vendor adds or changes an event.
 
+The ghost in `bogyman version` is rendered from `bogyman.svg` by
+`scripts/logo-art.py` (see its docstring); regenerate it rather than editing
+the array by hand.
+
 Crates: `bogyman-core` (session model, events, reducer), `bogyman-store`
 (SQLite), `bogyman-collectors` (vendor parsers), `bogyman-cli` (the binary).
