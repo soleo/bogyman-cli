@@ -1,8 +1,8 @@
 //! Bring the store up to date and hand back the sessions a command should see.
 
 use anyhow::{Context, Result};
-use bogyman_collectors::claude_sessions;
-use bogyman_core::{Event, EventKind, ReducerOptions, Session, poll_state};
+use bogyman_collectors::{claude_sessions, claude_transcript};
+use bogyman_core::{Event, EventKind, Host, ReducerOptions, Session, Vendor, poll_state};
 use bogyman_store::Store;
 use time::OffsetDateTime;
 
@@ -32,13 +32,46 @@ pub fn load_sessions(ctx: &Ctx, poll: bool) -> Result<Vec<Session>> {
             }
         }
     }
-    let sessions = store.materialize(
-        ReducerOptions {
-            redact: ctx.config.store.redact,
-        },
-        now,
-        bogyman_core::liveness::pid_alive,
-    )?;
+    let opts = ReducerOptions {
+        redact: ctx.config.store.redact,
+    };
+    let mut sessions = store.materialize(opts, now, bogyman_core::liveness::pid_alive)?;
+    if poll && ctx.config.collectors.claude_transcript {
+        let mut added = false;
+        for s in sessions
+            .iter()
+            .filter(|s| s.vendor == Vendor::ClaudeCode && s.state.is_live())
+        {
+            let path = match (&s.transcript_path, &s.cwd) {
+                (Some(p), _) => std::path::PathBuf::from(p),
+                (None, Some(cwd)) => claude_transcript::transcript_path(
+                    &ctx.paths.claude_dir,
+                    cwd,
+                    &s.vendor_session_id,
+                ),
+                (None, None) => continue,
+            };
+            let Some(tail) = claude_transcript::read_tail(&path) else {
+                continue;
+            };
+            let model_new = tail.model.is_some() && tail.model != s.model;
+            let host_new = tail.host.is_some() && s.host == Host::Unknown;
+            if model_new || host_new {
+                let mut ev = claude_transcript::event_for(
+                    &s.vendor_session_id,
+                    s.cwd.as_deref(),
+                    &tail,
+                    now,
+                );
+                ev.sanitize(ctx.config.store.redact);
+                store.append(&ev)?;
+                added = true;
+            }
+        }
+        if added {
+            sessions = store.materialize(opts, now, bogyman_core::liveness::pid_alive)?;
+        }
+    }
     Ok(apply_filters(ctx, sessions))
 }
 

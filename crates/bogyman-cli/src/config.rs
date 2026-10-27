@@ -92,6 +92,8 @@ impl Default for StoreCfg {
 pub struct Collectors {
     /// Poll `~/.claude/sessions/*.json` on every query. Cheap; on by default.
     pub claude_sessions: bool,
+    /// Read the tail of each live session's transcript for the model in use.
+    pub claude_transcript: bool,
     /// Tail local Cowork transcripts. Not implemented in v0.1.
     pub cowork: bool,
 }
@@ -100,6 +102,7 @@ impl Default for Collectors {
     fn default() -> Self {
         Collectors {
             claude_sessions: true,
+            claude_transcript: true,
             cowork: false,
         }
     }

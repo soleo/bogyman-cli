@@ -79,6 +79,12 @@ pub enum EventKind {
     SessionEnd {
         reason: Option<String>,
     },
+    /// Metadata read from the session's transcript tail: which model answered
+    /// last, and where the session runs. Never changes the state.
+    TranscriptPoll {
+        model: Option<String>,
+        host: Option<Host>,
+    },
     /// A poller's view of the session (for example `~/.claude/sessions/<pid>.json`).
     StatusPoll {
         status: String,
@@ -161,6 +167,7 @@ impl Event {
                 *name = name.as_deref().map(clip_detail);
                 fix(model);
             }
+            EventKind::TranscriptPoll { model, .. } => fix(model),
             EventKind::Unknown { name } => *name = clip_detail(name),
             EventKind::PromptSubmitted => {}
         }
@@ -184,6 +191,9 @@ impl EventKind {
             EventKind::TaskCompleted { .. } => "task_completed".into(),
             EventKind::SessionEnd { .. } => "session_end".into(),
             EventKind::StatusPoll { status, .. } => format!("poll {status}"),
+            EventKind::TranscriptPoll { model, .. } => {
+                format!("transcript {}", model.as_deref().unwrap_or("?"))
+            }
             EventKind::Unknown { name } => format!("unknown {name}"),
         }
     }
@@ -203,6 +213,7 @@ impl EventKind {
             EventKind::SessionStart { name, .. } | EventKind::StatusPoll { name, .. } => {
                 name.as_deref()
             }
+            EventKind::TranscriptPoll { model, .. } => model.as_deref(),
             _ => None,
         }
     }

@@ -51,6 +51,14 @@ pub fn waiting_cell(s: &Session) -> String {
     }
 }
 
+/// Model names without the vendor prefix, so the column stays narrow.
+pub fn model_cell(s: &Session) -> String {
+    match s.model.as_deref() {
+        Some(m) => m.strip_prefix("claude-").unwrap_or(m).to_string(),
+        None => String::new(),
+    }
+}
+
 pub fn cwd_cell(s: &Session) -> String {
     s.cwd
         .as_deref()
