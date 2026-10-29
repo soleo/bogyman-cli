@@ -1,4 +1,5 @@
-//! Process liveness, used to mark sessions whose process is gone as stopped.
+//! Process liveness and lookups: whether a session's process is alive, what a
+//! process is called and who its parent is, and signalling the daemon.
 
 #[cfg(unix)]
 pub fn pid_alive(pid: u32) -> bool {
@@ -17,6 +18,28 @@ pub fn pid_alive(pid: u32) -> bool {
 #[cfg(not(unix))]
 pub fn pid_alive(_pid: u32) -> bool {
     true
+}
+
+/// Ask a process to exit (SIGTERM). False if it doesn't exist or isn't ours.
+#[cfg(unix)]
+pub fn terminate(pid: u32) -> bool {
+    pid > 1 && unsafe { libc::kill(pid as libc::pid_t, libc::SIGTERM) } == 0
+}
+
+#[cfg(not(unix))]
+pub fn terminate(_pid: u32) -> bool {
+    false
+}
+
+/// The real user id, for addressing the user's launchd domain (`gui/<uid>`).
+#[cfg(unix)]
+pub fn uid() -> u32 {
+    unsafe { libc::getuid() }
+}
+
+#[cfg(not(unix))]
+pub fn uid() -> u32 {
+    0
 }
 
 /// What the hook path needs to know about a process: its name, its parent, and
