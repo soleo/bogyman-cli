@@ -53,10 +53,11 @@ impl Default for Notify {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct Focus {
+    /// `auto` to detect the terminal from the session's process tree, or one of
+    /// ghostty, iterm2, terminal, wezterm, kitty.
     pub terminal: String,
 }
 
