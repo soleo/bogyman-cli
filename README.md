@@ -16,8 +16,9 @@ events into a local SQLite file; the CLI reads it.
 It covers the Claude Code hook stream, the Codex hook / notify stream, a cheap
 poll of Claude Code's per-session status files, and a poll of
 `claude agents --json` that adds background sessions and the exact reason a
-session waits. The Codex rollout poller, `focus`, the daemon and notifications
-are the rest of the v0.2 milestone.
+session waits, and a tail of Codex rollout files for each Codex session's model,
+token totals and last reply. `focus`, the daemon and notifications are the rest
+of the v0.2 milestone.
 
 ## Install
 
@@ -136,6 +137,7 @@ redact = false        # true drops free-text detail (what a session waits on)
 claude_sessions = true     # poll ~/.claude/sessions/*.json on each query
 claude_transcript = true   # read each live session's transcript tail for the model in use
 claude_agents = true       # poll `claude agents --json --all` (in `ls --watch`; ~100 ms a run)
+codex_rollout = true       # tail ~/.codex/sessions rollouts changed in the last day, on each query
 
 [poll]
 claude_agents_secs = 5     # how often a watch re-runs `claude agents`

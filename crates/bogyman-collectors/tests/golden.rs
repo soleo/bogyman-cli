@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 use bogyman_collectors::{
-    claude_agents, claude_hooks, claude_sessions, claude_transcript, codex_hooks,
+    claude_agents, claude_hooks, claude_sessions, claude_transcript, codex_hooks, codex_rollout,
 };
 use bogyman_core::{EventKind, Host, Kind, Source, Vendor, WaitingFor};
 use serde_json::Value;
@@ -274,4 +274,52 @@ fn claude_agents_json_maps_each_entry_to_a_status_poll() {
 fn claude_agents_output_that_is_not_an_array_yields_nothing() {
     assert!(claude_agents::parse("", now()).is_empty());
     assert!(claude_agents::parse("{\"error\":\"not logged in\"}", now()).is_empty());
+}
+
+#[test]
+fn codex_rollout_yields_model_tokens_last_reply_and_turn_status() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/codex/0.164");
+    let files = codex_rollout::recent_files(&root.join("sessions"), std::time::UNIX_EPOCH);
+    assert_eq!(files.len(), 1);
+    let r = codex_rollout::read(&files[0].0).unwrap();
+    assert_eq!(r.session_id, "01a17abd-085b-7d12-b8ba-48afcdfd4f9c");
+    assert_eq!(r.cwd.as_deref(), Some("/Users/dev/deps-audit"));
+    assert_eq!(r.host, Some(Host::Terminal));
+    assert_eq!(r.model.as_deref(), Some("gpt-5.5-codex"));
+    assert_eq!(
+        r.tokens,
+        Some(bogyman_core::Tokens {
+            input: 5400,
+            output: 410
+        }),
+        "the newest total wins"
+    );
+    assert_eq!(r.status.as_deref(), Some("idle"));
+    assert_eq!(
+        r.last_message.as_deref(),
+        Some("Two packages are behind; pinned both.")
+    );
+
+    let names = codex_rollout::thread_names(&root.join("session_index.jsonl"));
+    let ev = codex_rollout::event_for(&r, names.get(&r.session_id).cloned(), now());
+    assert_eq!(ev.vendor, Vendor::Codex);
+    assert_eq!(ev.source, Source::Poll);
+    assert!(ev.raw.is_null(), "rollout content never rides along raw");
+    assert_eq!(
+        ev.at,
+        r.status_at.unwrap(),
+        "dated by the turn boundary, not the poll"
+    );
+    assert!(
+        matches!(&ev.kind, EventKind::RolloutPoll { name: Some(n), .. } if n == "deps-audit"),
+        "a later index line wins: {:?}",
+        ev.kind
+    );
+}
+
+#[test]
+fn codex_rollout_scan_ignores_files_older_than_the_cutoff() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/codex/0.164");
+    let future = std::time::SystemTime::now() + std::time::Duration::from_secs(3600);
+    assert!(codex_rollout::recent_files(&root.join("sessions"), future).is_empty());
 }
