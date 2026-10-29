@@ -127,6 +127,17 @@ pub enum WaitingFor {
 }
 
 impl WaitingFor {
+    /// Map the `waitingFor` phrase `claude agents --json` prints for a waiting session.
+    pub fn from_agents_phrase(s: &str) -> WaitingFor {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "permission prompt" => WaitingFor::PermissionPrompt,
+            "input needed" => WaitingFor::Question,
+            "sandbox request" => WaitingFor::SandboxRequest,
+            "dialog open" => WaitingFor::Dialog,
+            _ => WaitingFor::Unknown,
+        }
+    }
+
     pub fn label(self) -> &'static str {
         match self {
             WaitingFor::PermissionPrompt => "permission",
@@ -194,6 +205,9 @@ pub struct Session {
     pub tokens: Option<Tokens>,
     pub model: Option<String>,
     pub pid: Option<u32>,
+    /// The vendor's short handle for a background session (`claude attach <agent_id>`).
+    #[serde(default)]
+    pub agent_id: Option<String>,
     pub terminal: Option<Terminal>,
     pub transcript_path: Option<String>,
     /// Which kind of collector produced the most recent state change.

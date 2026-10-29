@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use time::OffsetDateTime;
 
-use crate::model::{Host, Kind, Source, Vendor};
+use crate::model::{Host, Kind, Source, Vendor, WaitingFor};
 use crate::{clip_detail, strip_control};
 
 /// Payload keys that carry content rather than metadata. They never reach the store.
@@ -94,6 +94,12 @@ pub enum EventKind {
         model: Option<String>,
         #[serde(default, with = "time::serde::rfc3339::option")]
         started_at: Option<OffsetDateTime>,
+        /// Why the session waits, when the poller says so precisely.
+        #[serde(default)]
+        waiting_for: Option<WaitingFor>,
+        /// The vendor's short handle for a background session.
+        #[serde(default)]
+        agent_id: Option<String>,
     },
     Unknown {
         name: String,
@@ -159,9 +165,11 @@ impl Event {
                 status,
                 name,
                 model,
+                agent_id,
                 ..
             } => {
                 *status = clip_detail(status);
+                *agent_id = agent_id.as_deref().map(clip_detail);
                 // A session's name is shown in listings even under redact; it is
                 // the vendor's label, not content.
                 *name = name.as_deref().map(clip_detail);
