@@ -3,8 +3,10 @@
 
 use std::path::PathBuf;
 
-use bogyman_collectors::{claude_hooks, claude_sessions, claude_transcript, codex_hooks};
-use bogyman_core::{EventKind, Host, Kind, Source, Vendor};
+use bogyman_collectors::{
+    claude_agents, claude_hooks, claude_sessions, claude_transcript, codex_hooks,
+};
+use bogyman_core::{EventKind, Host, Kind, Source, Vendor, WaitingFor};
 use serde_json::Value;
 use time::OffsetDateTime;
 
@@ -219,4 +221,57 @@ fn transcript_tail_yields_the_last_models_name_and_the_entrypoint() {
         p,
         PathBuf::from("/home/u/.claude/projects/-srv-app-v2/abc.jsonl")
     );
+}
+
+#[test]
+fn claude_agents_json_maps_each_entry_to_a_status_poll() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/claude/2.1/agents_json.json");
+    let text = std::fs::read_to_string(path).unwrap();
+    let events = claude_agents::parse(&text, now());
+    // The entry with neither sessionId nor id can't be tied to a session.
+    assert_eq!(events.len(), 3);
+
+    let interactive = &events[0];
+    assert_eq!(
+        interactive.vendor_session_id,
+        "1f0e2c9a-6d0b-4c11-9f39-2a77c1d4e8b5"
+    );
+    assert_eq!(interactive.pid, Some(48122));
+    assert!(matches!(
+        &interactive.kind,
+        EventKind::StatusPoll { status, kind: Some(Kind::Interactive), host: None, agent_id: None, .. } if status == "busy"
+    ));
+
+    let blocked = &events[1];
+    assert_eq!(blocked.source, Source::Poll);
+    match &blocked.kind {
+        EventKind::StatusPoll {
+            status,
+            host,
+            waiting_for,
+            agent_id,
+            started_at,
+            ..
+        } => {
+            assert_eq!(status, "blocked", "state wins over status");
+            assert_eq!(*host, Some(Host::AgentView));
+            assert_eq!(*waiting_for, Some(WaitingFor::PermissionPrompt));
+            assert_eq!(agent_id.as_deref(), Some("7c5dcf5d"));
+            assert_eq!(started_at.unwrap().unix_timestamp(), 1_793_052_900);
+        }
+        other => panic!("{other:?}"),
+    }
+
+    // A finished background session with no UUID falls back to its short id.
+    let done = &events[2];
+    assert_eq!(done.vendor_session_id, "a1b2c3d4");
+    assert_eq!(done.pid, None);
+    assert!(matches!(&done.kind, EventKind::StatusPoll { status, .. } if status == "done"));
+}
+
+#[test]
+fn claude_agents_output_that_is_not_an_array_yields_nothing() {
+    assert!(claude_agents::parse("", now()).is_empty());
+    assert!(claude_agents::parse("{\"error\":\"not logged in\"}", now()).is_empty());
 }

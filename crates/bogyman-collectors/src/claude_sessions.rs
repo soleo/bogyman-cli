@@ -11,7 +11,7 @@ use time::OffsetDateTime;
 use crate::claude_hooks::host_from_entrypoint;
 use crate::util::{str_field, u64_field};
 
-fn ms_to_time(ms: u64) -> Option<OffsetDateTime> {
+pub(crate) fn ms_to_time(ms: u64) -> Option<OffsetDateTime> {
     OffsetDateTime::from_unix_timestamp_nanos((ms as i128) * 1_000_000).ok()
 }
 
@@ -48,6 +48,8 @@ pub fn parse_file(raw: &Value, fallback_at: OffsetDateTime) -> Option<Event> {
             host,
             model: str_field(raw, &["model"]),
             started_at,
+            waiting_for: None,
+            agent_id: None,
         },
         cwd: str_field(raw, &["cwd"]),
         pid,
