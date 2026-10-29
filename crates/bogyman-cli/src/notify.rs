@@ -97,8 +97,19 @@ pub fn note_for(s: &Session) -> Note {
     };
     Note {
         session_id: s.id.clone(),
-        title,
-        body,
+        title: no_leading_dash(title),
+        body: no_leading_dash(body),
+    }
+}
+
+/// Session names come from vendors and agents. Text that starts with `-` could
+/// be read as an option by a notifier, including a user's own `notify.command`,
+/// so it never does.
+fn no_leading_dash(s: String) -> String {
+    if s.starts_with('-') {
+        format!("\u{2011}{}", s.trim_start_matches('-'))
+    } else {
+        s
     }
 }
 
@@ -133,6 +144,8 @@ pub fn delivery_command(cfg: &NotifyCfg, n: &Note) -> Option<Vec<String>> {
                 &script,
                 "-e",
                 "end run",
+                // Everything after `--` is argv, even text that starts with `-`.
+                "--",
                 &n.title,
                 &n.body,
             ]
@@ -141,7 +154,7 @@ pub fn delivery_command(cfg: &NotifyCfg, n: &Note) -> Option<Vec<String>> {
         )
     } else if cfg!(target_os = "linux") {
         Some(
-            ["notify-send", "--app-name=bogyman", &n.title, &n.body]
+            ["notify-send", "--app-name=bogyman", "--", &n.title, &n.body]
                 .map(String::from)
                 .to_vec(),
         )
@@ -255,6 +268,24 @@ mod tests {
         );
         let t3 = t1 + time::Duration::seconds(40);
         assert_eq!(n.due(&cfg(), &[s("cc-1", State::Blocked, t2)], t3).len(), 1);
+    }
+
+    #[test]
+    fn text_that_looks_like_an_option_is_neither_first_nor_parsed() {
+        let mut evil = s("cc-1", State::Blocked, START);
+        evil.name = Some("-e".into());
+        evil.waiting_for = None;
+        let note = note_for(&evil);
+        assert!(!note.title.starts_with('-'), "{}", note.title);
+        let argv = delivery_command(&cfg(), &note).unwrap();
+        let dashdash = argv.iter().position(|a| a == "--").expect("`--` present");
+        assert_eq!(
+            dashdash,
+            argv.len() - 3,
+            "`--` comes right before title and body"
+        );
+        let body_only = no_leading_dash("--x".into());
+        assert!(!body_only.starts_with('-'));
     }
 
     #[test]
