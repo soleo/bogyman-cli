@@ -53,6 +53,12 @@ pub fn run(paths: &Paths, vendor: Vendor, notify: Option<&str>) {
             return;
         }
     };
+    // Codex hooks carry no pid. The codex process that ran this hook is a few
+    // parents up; recording it lets focus find the window and lets the reducer
+    // see the session end when the process does.
+    if vendor == Vendor::Codex && ev.pid.is_none() {
+        ev.pid = bogyman_core::liveness::terminal_ancestor_named("codex", 4);
+    }
     // Privacy rules apply before anything touches disk. Config is one small file.
     ev.sanitize(Config::load(&paths.config).store.redact);
     match Store::open(&paths.db).and_then(|s| s.append(&ev)) {

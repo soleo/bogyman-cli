@@ -3,6 +3,7 @@
 mod commands;
 mod config;
 mod json;
+mod notify;
 mod paths;
 mod refresh;
 mod render;
@@ -94,6 +95,12 @@ enum Cmd {
         #[arg(long)]
         open: bool,
     },
+    /// Bring a session in front of you: raise its terminal tab, attach to a
+    /// background session, or resume one that has ended.
+    Focus {
+        /// bogyman id, a unique prefix, the vendor's own id, or the session name.
+        id: String,
+    },
     /// Deliver a message to a session without attaching to it.
     Send {
         /// bogyman id, a unique prefix, the vendor's own id, or the session name.
@@ -130,6 +137,11 @@ enum Cmd {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Optional background poller: `claude agents`, steady refresh, notifications.
+    Daemon {
+        #[command(subcommand)]
+        action: DaemonCmd,
+    },
     /// Diagnose the setup: vendor versions, hooks, store, last events.
     Doctor {
         /// Also dump the last 50 events.
@@ -142,6 +154,46 @@ enum Cmd {
     Version,
 }
 
+#[derive(Subcommand, Debug, Clone, Copy)]
+enum DaemonCmd {
+    /// Start the daemon in the background.
+    Start,
+    /// Stop the running daemon.
+    Stop,
+    /// Is it running, when did it last tick, how are its polls doing.
+    Status,
+    /// Run in the foreground (what start, launchd and systemd invoke).
+    Run,
+    /// Run the daemon at login: a launchd agent on macOS, a systemd user unit on Linux.
+    Install {
+        /// Print the service file instead of installing it.
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Send a sample notification, to check delivery and permissions.
+    NotifyTest,
+    /// Remove the login service.
+    Uninstall {
+        #[arg(long)]
+        dry_run: bool,
+    },
+}
+
+impl From<DaemonCmd> for commands::daemon::Action {
+    fn from(c: DaemonCmd) -> Self {
+        use commands::daemon::Action;
+        match c {
+            DaemonCmd::Start => Action::Start,
+            DaemonCmd::Stop => Action::Stop,
+            DaemonCmd::Status => Action::Status,
+            DaemonCmd::Run => Action::Run,
+            DaemonCmd::NotifyTest => Action::NotifyTest,
+            DaemonCmd::Install { dry_run } => Action::Install { dry_run },
+            DaemonCmd::Uninstall { dry_run } => Action::Uninstall { dry_run },
+        }
+    }
+}
+
 impl Cmd {
     /// The name this command reports in its `--json` envelope.
     fn name(&self) -> &'static str {
@@ -150,10 +202,12 @@ impl Cmd {
             Cmd::Waiting => "waiting",
             Cmd::Status { .. } => "status",
             Cmd::Show { .. } => "show",
+            Cmd::Focus { .. } => "focus",
             Cmd::Send { .. } => "send",
             Cmd::Hook { .. } => "hook",
             Cmd::Install { .. } => "install",
             Cmd::Uninstall { .. } => "uninstall",
+            Cmd::Daemon { .. } => "daemon",
             Cmd::Doctor { .. } => "doctor",
             Cmd::Gc => "gc",
             Cmd::Version => "version",
@@ -201,6 +255,7 @@ fn main() -> ExitCode {
         Cmd::Waiting => commands::waiting::run(&ctx),
         Cmd::Status { format } => commands::status::run(&ctx, format.as_deref()),
         Cmd::Show { id, open } => commands::show::run(&ctx, &id, open),
+        Cmd::Focus { id } => commands::focus::run(&ctx, &id),
         Cmd::Send { id, message } => commands::send::run(&ctx, &id, &message),
         Cmd::Install {
             claude,
@@ -212,6 +267,7 @@ fn main() -> ExitCode {
             codex,
             dry_run,
         } => commands::install::uninstall(&ctx, claude, codex, dry_run),
+        Cmd::Daemon { action } => commands::daemon::run(&ctx, action.into()),
         Cmd::Doctor { verbose } => commands::doctor::run(&ctx, verbose),
         Cmd::Gc => commands::gc::run(&ctx),
         Cmd::Version => commands::version::run(&ctx),

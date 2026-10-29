@@ -206,6 +206,19 @@ pub fn run(ctx: &Ctx, verbose: bool) -> Result<u8> {
         );
     }
 
+    let daemon_pid = crate::commands::daemon::running_pid(ctx);
+    let daemon_state =
+        crate::commands::daemon::read_state(ctx).filter(|s| Some(s.pid) == daemon_pid);
+    if let Some(st) = &daemon_state
+        && (now - st.last_tick).whole_seconds() > 30
+    {
+        warnings.push(format!(
+            "daemon: running but its last tick was {} ago; see {}",
+            ago(st.last_tick, now),
+            tilde(&ctx.paths.log)
+        ));
+    }
+
     if ctx.json {
         json::ok(
             ctx,
@@ -223,6 +236,7 @@ pub fn run(ctx: &Ctx, verbose: bool) -> Result<u8> {
                 "codex": {"found": codex.found, "path": codex.path, "version": codex.version, "meets_minimum": codex.meets_minimum(),
                           "hooks_registered": x_hooks, "hooks_expected": codex_hooks::HOOK_EVENTS.len(), "hooks_missing": x_missing,
                           "notify_registered": codex_notify, "last_event": last_for(Vendor::Codex)},
+                "daemon": {"running": daemon_pid.is_some(), "pid": daemon_pid, "state": daemon_state},
                 "warnings": warnings,
             }),
         )?;
@@ -248,6 +262,16 @@ pub fn run(ctx: &Ctx, verbose: bool) -> Result<u8> {
         }
     );
     println!("log       {}", tilde(&ctx.paths.log));
+    println!(
+        "daemon    {}",
+        match (daemon_pid, &daemon_state) {
+            (Some(pid), Some(st)) =>
+                format!("running (pid {pid}), last tick {}", ago(st.last_tick, now)),
+            (Some(pid), None) => format!("running (pid {pid})"),
+            (None, _) =>
+                "not running (optional: background sessions and notifications need it)".into(),
+        }
+    );
     println!();
     println!("claude    {}", claude.describe());
     println!(
