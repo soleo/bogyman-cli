@@ -16,7 +16,10 @@ pub fn run(ctx: &Ctx, all: bool, watch: bool) -> Result<u8> {
     loop {
         // `claude agents` is too slow for every query, but a watch can afford it
         // on the poll interval. A failure (not installed, logged out) is quiet.
-        if last_agents_poll.is_none_or(|t| t.elapsed() >= every) {
+        // A running daemon already polls; don't double up.
+        if last_agents_poll.is_none_or(|t| t.elapsed() >= every)
+            && crate::commands::daemon::running_pid(ctx).is_none()
+        {
             last_agents_poll = Some(std::time::Instant::now());
             if let Err(e) = refresh::poll_claude_agents(ctx) {
                 ctx.paths.log(&format!("claude agents poll: {e:#}"));
