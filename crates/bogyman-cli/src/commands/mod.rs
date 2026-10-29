@@ -1,3 +1,4 @@
+pub mod daemon;
 pub mod doctor;
 pub mod focus;
 pub mod gc;
