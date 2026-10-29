@@ -143,7 +143,7 @@ redact = false        # true drops free-text detail (what a session waits on)
 [collectors]
 claude_sessions = true     # poll ~/.claude/sessions/*.json on each query
 claude_transcript = true   # read each live session's transcript tail for the model in use
-claude_agents = true       # poll `claude agents --json --all` (in `ls --watch`; ~100 ms a run)
+claude_agents = true       # poll `claude agents --json --all` (daemon and `ls --watch`; ~100 ms a run)
 codex_rollout = true       # tail ~/.codex/sessions rollouts changed in the last day, on each query
 
 [poll]
