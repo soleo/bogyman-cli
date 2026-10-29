@@ -7,6 +7,7 @@ mod paths;
 mod refresh;
 mod render;
 mod resolve;
+mod vendor_cmd;
 
 use std::io::IsTerminal;
 use std::path::PathBuf;
