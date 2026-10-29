@@ -94,6 +94,12 @@ enum Cmd {
         #[arg(long)]
         open: bool,
     },
+    /// Bring a session in front of you: raise its terminal tab, attach to a
+    /// background session, or resume one that has ended.
+    Focus {
+        /// bogyman id, a unique prefix, the vendor's own id, or the session name.
+        id: String,
+    },
     /// Deliver a message to a session without attaching to it.
     Send {
         /// bogyman id, a unique prefix, the vendor's own id, or the session name.
@@ -150,6 +156,7 @@ impl Cmd {
             Cmd::Waiting => "waiting",
             Cmd::Status { .. } => "status",
             Cmd::Show { .. } => "show",
+            Cmd::Focus { .. } => "focus",
             Cmd::Send { .. } => "send",
             Cmd::Hook { .. } => "hook",
             Cmd::Install { .. } => "install",
@@ -201,6 +208,7 @@ fn main() -> ExitCode {
         Cmd::Waiting => commands::waiting::run(&ctx),
         Cmd::Status { format } => commands::status::run(&ctx, format.as_deref()),
         Cmd::Show { id, open } => commands::show::run(&ctx, &id, open),
+        Cmd::Focus { id } => commands::focus::run(&ctx, &id),
         Cmd::Send { id, message } => commands::send::run(&ctx, &id, &message),
         Cmd::Install {
             claude,
