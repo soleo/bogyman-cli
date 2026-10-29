@@ -5,28 +5,35 @@ use time::{Duration, OffsetDateTime};
 use crate::render::{
     cwd_cell, fmt_age, model_cell, print_rows, sort_for_listing, state_cell, truncate, waiting_cell,
 };
-use crate::{Ctx, EXIT_OK, refresh};
+use crate::{Ctx, EXIT_OK, json, refresh};
 
 pub fn run(ctx: &Ctx, all: bool, watch: bool) -> Result<u8> {
     if !watch {
-        return once(ctx, all);
+        return once(ctx, all, false);
     }
     loop {
-        if ctx.tty {
+        // Under --json the output is an NDJSON stream, so it must not be
+        // interrupted by a screen clear even on a terminal.
+        if ctx.tty && !ctx.json {
             print!("\x1b[2J\x1b[H");
         }
-        once(ctx, all)?;
+        once(ctx, all, true)?;
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
 }
 
-fn once(ctx: &Ctx, all: bool) -> Result<u8> {
+fn once(ctx: &Ctx, all: bool, watch: bool) -> Result<u8> {
     let now = OffsetDateTime::now_utc();
     let mut sessions = refresh::load_sessions(ctx, true)?;
     sessions.retain(|s| s.state.is_live() || (all && now - s.observed_at < Duration::hours(24)));
     sort_for_listing(&mut sessions);
     if ctx.json {
-        println!("{}", serde_json::to_string_pretty(&sessions)?);
+        let data = serde_json::json!({"sessions": sessions});
+        if watch {
+            json::ok_line("ls", data)?;
+        } else {
+            json::ok(ctx, "ls", data)?;
+        }
         return Ok(EXIT_OK);
     }
     if sessions.is_empty() {

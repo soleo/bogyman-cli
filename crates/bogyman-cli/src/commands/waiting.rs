@@ -3,7 +3,7 @@ use bogyman_core::State;
 use time::OffsetDateTime;
 
 use crate::render::{cwd_cell, fmt_age, print_rows, truncate, waiting_cell};
-use crate::{Ctx, EXIT_EMPTY, EXIT_OK, refresh};
+use crate::{Ctx, EXIT_EMPTY, EXIT_OK, json, refresh};
 
 pub fn run(ctx: &Ctx) -> Result<u8> {
     let now = OffsetDateTime::now_utc();
@@ -11,7 +11,9 @@ pub fn run(ctx: &Ctx) -> Result<u8> {
     sessions.retain(|s| s.state == State::Blocked);
     sessions.sort_by_key(|s| s.since);
     if ctx.json {
-        println!("{}", serde_json::to_string_pretty(&sessions)?);
+        // An empty result is a success, not an error; the exit code carries the
+        // "nothing is waiting" signal so `waiting && …` chains still work.
+        json::ok(ctx, "waiting", serde_json::json!({"sessions": sessions}))?;
         return Ok(if sessions.is_empty() {
             EXIT_EMPTY
         } else {

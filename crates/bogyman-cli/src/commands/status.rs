@@ -4,7 +4,7 @@
 use anyhow::Result;
 use bogyman_core::State;
 
-use crate::{Ctx, EXIT_OK, refresh};
+use crate::{Ctx, EXIT_OK, json, refresh};
 
 pub fn run(ctx: &Ctx, format: Option<&str>) -> Result<u8> {
     let sessions = refresh::load_sessions(ctx, false)?;
@@ -45,14 +45,14 @@ pub fn run(ctx: &Ctx, format: Option<&str>) -> Result<u8> {
     };
 
     if ctx.json {
-        println!(
-            "{}",
+        json::ok(
+            ctx,
+            "status",
             serde_json::json!({
-                "schema": bogyman_core::SCHEMA,
                 "blocked": blocked, "working": working, "done": done,
                 "failed": failed, "stale": stale, "total": total, "line": line,
-            })
-        );
+            }),
+        )?;
     } else if format.is_some() || total > 0 || failed > 0 {
         println!("{line}");
     }

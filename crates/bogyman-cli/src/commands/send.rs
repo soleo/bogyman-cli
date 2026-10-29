@@ -18,7 +18,7 @@ use anyhow::{Context, Result, anyhow};
 use bogyman_collectors::claude_sessions;
 use bogyman_core::{Session, State, Vendor};
 
-use crate::{Ctx, EXIT_ERROR, EXIT_OK, EXIT_VENDOR_UNAVAILABLE, refresh, resolve};
+use crate::{Ctx, EXIT_ERROR, EXIT_OK, EXIT_VENDOR_UNAVAILABLE, json, refresh, resolve};
 
 const MAX_MESSAGE_BYTES: usize = 1_000_000;
 
@@ -176,16 +176,15 @@ pub fn run(ctx: &Ctx, id: &str, message_arg: &str) -> Result<u8> {
 
 fn finish(ctx: &Ctx, s: &Session, code: u8, line: String) -> Result<u8> {
     if ctx.json {
-        println!(
-            "{}",
-            serde_json::json!({
-                "schema": bogyman_core::SCHEMA,
-                "ok": code == EXIT_OK,
-                "id": s.id,
-                "vendor": s.vendor,
-                "detail": line,
-            })
-        );
+        if code == EXIT_OK {
+            json::ok(
+                ctx,
+                "send",
+                serde_json::json!({"id": s.id, "vendor": s.vendor, "detail": line}),
+            )?;
+        } else {
+            json::err(ctx, "send", code, &line);
+        }
     } else if code == EXIT_OK {
         println!("{line}");
     } else {

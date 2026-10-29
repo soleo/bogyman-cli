@@ -13,7 +13,7 @@ use time::format_description::well_known::Rfc3339;
 use crate::commands::install::{MARKER, notify_is_ours};
 use crate::paths::tilde;
 use crate::render::{ago, print_rows};
-use crate::{Ctx, EXIT_OK, refresh};
+use crate::{Ctx, EXIT_OK, json, refresh};
 
 pub const MIN_CLAUDE: (u64, u64, u64) = (2, 1, 139);
 pub const MIN_CODEX: (u64, u64, u64) = (0, 130, 0);
@@ -191,10 +191,10 @@ pub fn run(ctx: &Ctx, verbose: bool) -> Result<u8> {
     }
 
     if ctx.json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&serde_json::json!({
-                "schema": bogyman_core::SCHEMA,
+        json::ok(
+            ctx,
+            "doctor",
+            serde_json::json!({
                 "bogyman": env!("CARGO_PKG_VERSION"),
                 "build": {"commit": crate::commands::version::GIT_COMMIT, "built_at": crate::commands::version::BUILT_AT, "target": crate::commands::version::TARGET},
                 "store": {"path": ctx.paths.db, "bytes": db_size, "events": events, "sessions": sessions.len(), "live": live},
@@ -206,8 +206,8 @@ pub fn run(ctx: &Ctx, verbose: bool) -> Result<u8> {
                           "hooks_registered": x_hooks, "hooks_expected": codex_hooks::HOOK_EVENTS.len(), "hooks_missing": x_missing,
                           "notify_registered": codex_notify, "last_event": last_for(Vendor::Codex)},
                 "warnings": warnings,
-            }))?
-        );
+            }),
+        )?;
         return Ok(EXIT_OK);
     }
 
