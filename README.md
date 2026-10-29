@@ -17,8 +17,8 @@ It covers the Claude Code hook stream, the Codex hook / notify stream, a cheap
 poll of Claude Code's per-session status files, and a poll of
 `claude agents --json` that adds background sessions and the exact reason a
 session waits, and a tail of Codex rollout files for each Codex session's model,
-token totals and last reply. `focus`, the daemon and notifications are the rest
-of the v0.2 milestone.
+token totals and last reply. `bogyman focus` brings any of them in front of you.
+The daemon and notifications are the rest of the v0.2 milestone.
 
 ## Install
 
@@ -60,6 +60,7 @@ entries. Pass `--dry-run` to preview.
 | `bogyman waiting` | Blocked sessions only, oldest wait first. Exit 3 when empty, so it works in `&&` chains. |
 | `bogyman status` | One line for prompts: `⏳2 ▶3 ✓1`. Cache only. `--format '{blocked} waiting'` to template. |
 | `bogyman show <id>` | Full record plus the last 20 events. `<id>` is a bogyman id, a unique prefix, the vendor id, or the name. |
+| `bogyman focus <id>` | Bring a session in front of you. A live terminal session gets its tab selected: Ghostty, iTerm2 and Terminal via AppleScript, WezTerm and kitty via their CLIs, a tmux pane first and then the terminal showing it; on Linux the window is raised with xdotool or wmctrl. A background Claude session runs `claude attach`, a Desktop one brings Claude forward, and an ended one resumes in its directory. Attach and resume take over the terminal, so under `--json` or in a pipe the command is printed instead. |
 | `bogyman send <id> "msg"` | Deliver a message without attaching. Claude Code sessions get it over their inbox socket and read it between tool calls, or start a turn with it when idle. Codex goes through the `[send] codex` command template. `-` reads the message from stdin. |
 | `bogyman install` / `uninstall` | Register or remove hooks. `--claude`, `--codex`, `--dry-run`. |
 | `bogyman doctor` | Vendor versions, hooks registered, store health, last event per vendor. `--verbose` dumps recent events. |
@@ -91,6 +92,7 @@ without tracking what it asked for. What sits under `data`:
 | `ls`, `waiting` | `sessions` — the same session records the tables are built from |
 | `status` | `blocked`, `working`, `done`, `failed`, `stale`, `total`, `line` |
 | `show` | `session`, `events` |
+| `focus` | `id`, `vendor`, `action` (`raised`, `activated`, `attach`, `resume`), `app`, `tty`, `command`, `detail` |
 | `send` | `id`, `vendor`, `detail` |
 | `install`, `uninstall` | `changed`, `dry_run`, `lines` |
 | `doctor` | `bogyman`, `build`, `store`, `config`, `claude`, `codex`, `warnings` |
@@ -141,6 +143,9 @@ codex_rollout = true       # tail ~/.codex/sessions rollouts changed in the last
 
 [poll]
 claude_agents_secs = 5     # how often a watch re-runs `claude agents`
+
+[focus]
+terminal = "auto"          # or ghostty, iterm2, terminal, wezterm, kitty when detection guesses wrong
 
 [send]
 codex = ["codex", "queue", "--session", "{id}", "{message}"]   # how `send` reaches a Codex session
