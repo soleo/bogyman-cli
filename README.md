@@ -13,10 +13,11 @@ wherever you started them, and keeps one list: who is blocked, on what, and
 since when. It never spawns, schedules, or attaches to anything. Hooks push
 events into a local SQLite file; the CLI reads it.
 
-This is v0.1, the hook MVP from the PRD. It covers the Claude Code hook stream,
-the Codex hook / notify stream, and a cheap poll of Claude Code's per-session
-status files. Pollers for `claude agents --json`, `focus`, `send`, the daemon
-and notifications are later milestones.
+It covers the Claude Code hook stream, the Codex hook / notify stream, a cheap
+poll of Claude Code's per-session status files, and a poll of
+`claude agents --json` that adds background sessions and the exact reason a
+session waits. The Codex rollout poller, `focus`, the daemon and notifications
+are the rest of the v0.2 milestone.
 
 ## Install
 
@@ -54,7 +55,7 @@ entries. Pass `--dry-run` to preview.
 
 | Command | What it does |
 | --- | --- |
-| `bogyman ls` | Every live session, blocked first. `--all` adds failed and stopped from the last 24 h, `--watch` redraws each second. |
+| `bogyman ls` | Every live session, blocked first. `--all` adds failed and stopped from the last 24 h, `--watch` redraws each second and polls `claude agents --json` every `poll.claude_agents_secs`. |
 | `bogyman waiting` | Blocked sessions only, oldest wait first. Exit 3 when empty, so it works in `&&` chains. |
 | `bogyman status` | One line for prompts: `⏳2 ▶3 ✓1`. Cache only. `--format '{blocked} waiting'` to template. |
 | `bogyman show <id>` | Full record plus the last 20 events. `<id>` is a bogyman id, a unique prefix, the vendor id, or the name. |
@@ -134,6 +135,10 @@ redact = false        # true drops free-text detail (what a session waits on)
 [collectors]
 claude_sessions = true     # poll ~/.claude/sessions/*.json on each query
 claude_transcript = true   # read each live session's transcript tail for the model in use
+claude_agents = true       # poll `claude agents --json --all` (in `ls --watch`; ~100 ms a run)
+
+[poll]
+claude_agents_secs = 5     # how often a watch re-runs `claude agents`
 
 [send]
 codex = ["codex", "queue", "--session", "{id}", "{message}"]   # how `send` reaches a Codex session

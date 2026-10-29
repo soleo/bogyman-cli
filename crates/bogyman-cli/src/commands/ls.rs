@@ -11,7 +11,17 @@ pub fn run(ctx: &Ctx, all: bool, watch: bool) -> Result<u8> {
     if !watch {
         return once(ctx, all, false);
     }
+    let every = std::time::Duration::from_secs(ctx.config.poll.claude_agents_secs.max(1));
+    let mut last_agents_poll: Option<std::time::Instant> = None;
     loop {
+        // `claude agents` is too slow for every query, but a watch can afford it
+        // on the poll interval. A failure (not installed, logged out) is quiet.
+        if last_agents_poll.is_none_or(|t| t.elapsed() >= every) {
+            last_agents_poll = Some(std::time::Instant::now());
+            if let Err(e) = refresh::poll_claude_agents(ctx) {
+                ctx.paths.log(&format!("claude agents poll: {e:#}"));
+            }
+        }
         // Under --json the output is an NDJSON stream, so it must not be
         // interrupted by a screen clear even on a terminal.
         if ctx.tty && !ctx.json {

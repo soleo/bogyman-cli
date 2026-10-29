@@ -164,6 +164,22 @@ pub fn run(ctx: &Ctx, verbose: bool) -> Result<u8> {
         .and_then(|d| d.get("notify").map(notify_is_ours));
 
     let mut warnings: Vec<String> = Vec::new();
+    // The poller the daemon and `ls --watch` run. Running it here also proves it works.
+    let agents_poll: Result<usize, String> = if !ctx.config.collectors.claude_agents {
+        Err("disabled in config".into())
+    } else if !claude.found {
+        Err("claude not on PATH".into())
+    } else {
+        refresh::poll_claude_agents(ctx).map_err(|e| format!("{e:#}"))
+    };
+    if claude.found
+        && ctx.config.collectors.claude_agents
+        && let Err(e) = &agents_poll
+    {
+        warnings.push(format!(
+            "claude: `claude agents --json` failed ({e}); background sessions won't appear"
+        ));
+    }
     if claude.found && c_hooks < claude_hooks::HOOK_EVENTS.len() {
         warnings.push(format!(
             "claude: {} hook(s) missing ({}); run `bogyman install`",
@@ -201,7 +217,9 @@ pub fn run(ctx: &Ctx, verbose: bool) -> Result<u8> {
                 "config": {"path": ctx.paths.config, "present": ctx.paths.config.exists()},
                 "claude": {"found": claude.found, "path": claude.path, "version": claude.version, "meets_minimum": claude.meets_minimum(),
                            "hooks_registered": c_hooks, "hooks_expected": claude_hooks::HOOK_EVENTS.len(), "hooks_missing": c_missing,
-                           "sessions_dir": ctx.paths.claude_sessions_dir, "sessions_files": sessions_files, "last_event": last_for(Vendor::ClaudeCode)},
+                           "sessions_dir": ctx.paths.claude_sessions_dir, "sessions_files": sessions_files,
+                           "agents_poll": match &agents_poll { Ok(n) => serde_json::json!({"ok": true, "events_added": n}), Err(e) => serde_json::json!({"ok": false, "error": e}) },
+                           "last_event": last_for(Vendor::ClaudeCode)},
                 "codex": {"found": codex.found, "path": codex.path, "version": codex.version, "meets_minimum": codex.meets_minimum(),
                           "hooks_registered": x_hooks, "hooks_expected": codex_hooks::HOOK_EVENTS.len(), "hooks_missing": x_missing,
                           "notify_registered": codex_notify, "last_event": last_for(Vendor::Codex)},
@@ -242,6 +260,13 @@ pub fn run(ctx: &Ctx, verbose: bool) -> Result<u8> {
         "  sessions dir {} file(s) in {}",
         sessions_files,
         tilde(&ctx.paths.claude_sessions_dir)
+    );
+    println!(
+        "  agents poll  {}",
+        match &agents_poll {
+            Ok(n) => format!("ok, {n} change(s) recorded"),
+            Err(e) => e.clone(),
+        }
     );
     println!("  last event   {}", last_for(Vendor::ClaudeCode));
     println!();

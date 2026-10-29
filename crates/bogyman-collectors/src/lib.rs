@@ -2,10 +2,12 @@
 //!
 //! Push collectors (`claude_hooks`, `codex_hooks`) parse the JSON a vendor hook
 //! hands `bogyman hook <vendor>` on stdin. Pull collectors (`claude_sessions`)
-//! read what the vendor leaves on disk. Every parser keeps the raw payload and
+//! read what the vendor leaves on disk (`claude_sessions`) or ask its CLI
+//! (`claude_agents`). Every parser keeps the raw payload and
 //! fails soft: an unrecognized event becomes `EventKind::Unknown`, never an error,
 //! as long as a session id can be found.
 
+pub mod claude_agents;
 pub mod claude_hooks;
 pub mod claude_sessions;
 pub mod claude_transcript;

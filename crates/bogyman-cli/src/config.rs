@@ -1,7 +1,6 @@
 //! `~/.config/bogyman/config.toml`. Every key has a default; a missing file is fine.
-//! Keys for the daemon, pollers, notifications and focus are accepted now so a
-//! config written for a later version still parses, even though v0.1 reads only
-//! `store` and `collectors`.
+//! Keys for the daemon, notifications and focus are accepted before they are
+//! used, so a config written for a later version still parses.
 
 use std::path::Path;
 
@@ -18,11 +17,11 @@ pub struct Config {
     pub send: SendCfg,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct Poll {
     pub claude_agents_secs: u64,
+    #[allow(dead_code)]
     pub codex_rollout_secs: u64,
 }
 
@@ -94,7 +93,10 @@ pub struct Collectors {
     pub claude_sessions: bool,
     /// Read the tail of each live session's transcript for the model in use.
     pub claude_transcript: bool,
-    /// Tail local Cowork transcripts. Not implemented in v0.1.
+    /// Run `claude agents --json --all` for background sessions and precise
+    /// wait reasons. Costs ~100 ms a run, so only the daemon and `ls --watch` do it.
+    pub claude_agents: bool,
+    /// Tail local Cowork transcripts. Not implemented yet.
     pub cowork: bool,
 }
 
@@ -103,6 +105,7 @@ impl Default for Collectors {
         Collectors {
             claude_sessions: true,
             claude_transcript: true,
+            claude_agents: true,
             cowork: false,
         }
     }

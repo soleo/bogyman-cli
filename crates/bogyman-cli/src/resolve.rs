@@ -71,6 +71,7 @@ mod tests {
             tokens: None,
             model: None,
             pid: None,
+            agent_id: None,
             terminal: None,
             transcript_path: None,
             source: Source::Hook,
