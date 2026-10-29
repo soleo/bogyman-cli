@@ -1,12 +1,15 @@
 //! Bring the store up to date and hand back the sessions a command should see.
 
 use anyhow::{Context, Result};
-use bogyman_collectors::{claude_sessions, claude_transcript};
-use bogyman_core::{Event, EventKind, Host, ReducerOptions, Session, Vendor, poll_state};
+use bogyman_collectors::{claude_agents, claude_sessions, claude_transcript};
+use bogyman_core::{Event, EventKind, Host, ReducerOptions, Session, State, Vendor, poll_state};
 use bogyman_store::Store;
 use time::OffsetDateTime;
 
 use crate::Ctx;
+
+/// How long `claude agents --json` may take before a poll gives up on it.
+const CLAUDE_AGENTS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 pub fn open_store(ctx: &Ctx) -> Result<Store> {
     Store::open(&ctx.paths.db)
@@ -19,18 +22,11 @@ pub fn load_sessions(ctx: &Ctx, poll: bool) -> Result<Vec<Session>> {
     let mut store = open_store(ctx)?;
     let now = OffsetDateTime::now_utc();
     if poll && ctx.config.collectors.claude_sessions {
-        let snapshot = store.load_snapshot()?;
-        for mut ev in claude_sessions::poll(&ctx.paths.claude_sessions_dir, now) {
-            ev.sanitize(ctx.config.store.redact);
-            let key = Session::key(ev.vendor, &ev.vendor_session_id);
-            let fresh = match snapshot.get(&key) {
-                None => true,
-                Some(s) => poll_adds_something(s, &ev),
-            };
-            if fresh {
-                store.append(&ev)?;
-            }
-        }
+        append_fresh(
+            ctx,
+            &store,
+            claude_sessions::poll(&ctx.paths.claude_sessions_dir, now),
+        )?;
     }
     let opts = ReducerOptions {
         redact: ctx.config.store.redact,
@@ -75,10 +71,57 @@ pub fn load_sessions(ctx: &Ctx, poll: bool) -> Result<Vec<Session>> {
     Ok(apply_filters(ctx, sessions))
 }
 
+/// Ask Claude Code for its session list (`claude agents --json --all`) and store
+/// what changed. Spawns the vendor CLI, so callers run it on a timer, not per
+/// query. Returns how many events were added.
+pub fn poll_claude_agents(ctx: &Ctx) -> Result<usize> {
+    if !ctx.config.collectors.claude_agents {
+        return Ok(0);
+    }
+    let text = crate::vendor_cmd::output(
+        "claude",
+        &["agents", "--json", "--all"],
+        CLAUDE_AGENTS_TIMEOUT,
+    )?;
+    let now = OffsetDateTime::now_utc();
+    let events = claude_agents::parse(&text, now);
+    let store = open_store(ctx)?;
+    append_fresh(ctx, &store, events)
+}
+
+/// Append the poll events that tell the snapshot something new.
+fn append_fresh(ctx: &Ctx, store: &Store, events: Vec<Event>) -> Result<usize> {
+    let snapshot = store.load_snapshot()?;
+    let mut added = 0;
+    for mut ev in events {
+        ev.sanitize(ctx.config.store.redact);
+        let key = Session::key(ev.vendor, &ev.vendor_session_id);
+        let fresh = match snapshot.get(&key) {
+            None => true,
+            Some(s) => poll_adds_something(s, &ev),
+        };
+        if fresh {
+            store.append(&ev)?;
+            added += 1;
+        }
+    }
+    Ok(added)
+}
+
 fn poll_adds_something(s: &Session, ev: &Event) -> bool {
-    let EventKind::StatusPoll { status, name, .. } = &ev.kind else {
+    let EventKind::StatusPoll {
+        status,
+        name,
+        waiting_for,
+        agent_id,
+        ..
+    } = &ev.kind
+    else {
         return true;
     };
+    if agent_id.is_some() && s.agent_id != *agent_id {
+        return true;
+    }
     if s.pid.is_none() && ev.pid.is_some() {
         return true;
     }
@@ -89,8 +132,9 @@ fn poll_adds_something(s: &Session, ev: &Event) -> bool {
         return false;
     }
     match poll_state(status) {
-        Some((state, _)) => state != s.state,
-        None => false,
+        Some((state, _)) if state != s.state => true,
+        Some((State::Blocked, _)) => waiting_for.is_some() && *waiting_for != s.waiting_for,
+        _ => false,
     }
 }
 
