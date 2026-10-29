@@ -15,6 +15,8 @@ pub struct Paths {
     pub codex_home: PathBuf,
     pub codex_hooks: PathBuf,
     pub codex_config: PathBuf,
+    pub codex_sessions_dir: PathBuf,
+    pub codex_session_index: PathBuf,
 }
 
 fn home() -> PathBuf {
@@ -55,6 +57,8 @@ impl Paths {
             claude_dir,
             codex_hooks: codex_home.join("hooks.json"),
             codex_config: codex_home.join("config.toml"),
+            codex_sessions_dir: codex_home.join("sessions"),
+            codex_session_index: codex_home.join("session_index.jsonl"),
             codex_home,
         }
     }
