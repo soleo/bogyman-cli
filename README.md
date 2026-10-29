@@ -18,8 +18,8 @@ poll of Claude Code's per-session status files, and a poll of
 `claude agents --json` that adds background sessions and the exact reason a
 session waits, and a tail of Codex rollout files for each Codex session's model,
 token totals and last reply. `bogyman focus` brings any of them in front of you.
-An optional daemon keeps it all current in the background. Notifications are the
-rest of the v0.2 milestone.
+An optional daemon keeps it all current in the background and can notify you
+when a session gets blocked or fails.
 
 ## Install
 
@@ -64,7 +64,7 @@ entries. Pass `--dry-run` to preview.
 | `bogyman focus <id>` | Bring a session in front of you. A live terminal session gets its tab selected: Ghostty, iTerm2 and Terminal via AppleScript, WezTerm and kitty via their CLIs, a tmux pane first and then the terminal showing it; on Linux the window is raised with xdotool or wmctrl. A background Claude session runs `claude attach`, a Desktop one brings Claude forward, and an ended one resumes in its directory. Attach and resume take over the terminal, so under `--json` or in a pipe the command is printed instead. |
 | `bogyman send <id> "msg"` | Deliver a message without attaching. Claude Code sessions get it over their inbox socket and read it between tool calls, or start a turn with it when idle. Codex goes through the `[send] codex` command template. `-` reads the message from stdin. |
 | `bogyman install` / `uninstall` | Register or remove hooks. `--claude`, `--codex`, `--dry-run`. |
-| `bogyman daemon start` / `stop` / `status` | Optional background poller. Runs `claude agents --json` every `poll.claude_agents_secs`, refreshes session files, transcripts and rollouts every `poll.codex_rollout_secs`, and prunes old events every 6 h. One instance at a time (it holds a lock on `daemon.lock`); `status` shows its last tick and how each poll is doing. `ls --watch` leaves the `claude agents` poll to it when it runs. |
+| `bogyman daemon start` / `stop` / `status` | Optional background poller. Runs `claude agents --json` every `poll.claude_agents_secs`, refreshes session files, transcripts and rollouts every `poll.codex_rollout_secs`, and prunes old events every 6 h. One instance at a time (it holds a lock on `daemon.lock`); `status` shows its last tick and how each poll is doing. `ls --watch` leaves the `claude agents` poll to it when it runs. With `notify.enabled = true` it sends a desktop notification when a session enters a state in `notify.on`. `daemon notify-test` sends a sample. |
 | `bogyman daemon install` / `uninstall` | Run the daemon at login: a launchd agent (`~/Library/LaunchAgents/dev.bogyman.daemon.plist`) on macOS, a systemd user unit on Linux. Your `PATH` is copied in so `claude` and `codex` resolve. `--dry-run` prints the file. |
 | `bogyman doctor` | Vendor versions, hooks registered, store health, last event per vendor. `--verbose` dumps recent events. |
 | `bogyman gc` | Prune events older than `retention_days` (default 7). |
@@ -149,6 +149,13 @@ codex_rollout = true       # tail ~/.codex/sessions rollouts changed in the last
 [poll]
 claude_agents_secs = 5     # how often the daemon (or a watch) re-runs `claude agents`
 codex_rollout_secs = 2     # how often the daemon refreshes files and rollouts
+
+[notify]                   # sent by the daemon
+enabled = false
+on = ["blocked", "failed"] # also "done"
+debounce_secs = 30         # least time between two notifications for one session
+sound = true               # macOS
+# command = ["terminal-notifier", "-title", "{title}", "-message", "{body}", "-execute", "bogyman focus {id}"]
 
 [focus]
 terminal = "auto"          # or ghostty, iterm2, terminal, wezterm, kitty when detection guesses wrong
