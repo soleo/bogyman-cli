@@ -101,6 +101,7 @@ fn new_session(ev: &Event) -> Session {
         tokens: None,
         model: None,
         pid: ev.pid,
+        agent_id: None,
         terminal: None,
         transcript_path: ev.transcript_path.clone(),
         source: ev.source,
@@ -164,8 +165,13 @@ fn apply_event(s: &mut Session, ev: &Event, redact: bool) {
         host,
         model,
         started_at,
+        waiting_for: poll_waiting,
+        agent_id,
     } = &ev.kind
     {
+        if agent_id.is_some() {
+            s.agent_id = agent_id.clone();
+        }
         if name.is_some() {
             s.name = name.clone();
         }
@@ -189,19 +195,33 @@ fn apply_event(s: &mut Session, ev: &Event, redact: bool) {
             return;
         }
         if let Some((state, waiting)) = poll_state(status) {
+            let waiting = if state == State::Blocked {
+                poll_waiting.or(waiting)
+            } else {
+                waiting
+            };
             // Don't downgrade a precise blocked reason to "unknown" on a poll that agrees.
-            let waiting = if state == State::Blocked && s.state == State::Blocked {
+            let waiting = if state == State::Blocked
+                && s.state == State::Blocked
+                && waiting == Some(WaitingFor::Unknown)
+            {
                 s.waiting_for.or(waiting)
             } else {
                 waiting
             };
-            if s.state != state {
+            if s.state != state || s.waiting_for != waiting {
                 let d = if state == State::Blocked {
                     s.waiting_detail.clone()
                 } else {
                     None
                 };
+                let refined = s.state == state;
+                let since = s.since;
                 set_state(s, state, waiting, d, ev.at, Source::Poll);
+                if refined {
+                    // Only the reason got more precise; the wait itself is the same one.
+                    s.since = since;
+                }
             }
         }
         s.observed_at = s.observed_at.max(ev.at);
@@ -406,6 +426,8 @@ mod tests {
                 host: Some(Host::Terminal),
                 model: None,
                 started_at: None,
+                waiting_for: None,
+                agent_id: None,
             },
         );
         e.source = Source::Poll;
@@ -670,5 +692,27 @@ mod tests {
         let long = "x".repeat(500);
         assert_eq!(clip_detail(&long).chars().count(), 200);
         assert_eq!(clip_detail("short"), "short");
+    }
+
+    #[test]
+    fn a_precise_poll_reason_refines_a_wait_without_resetting_its_age() {
+        let mut r = Reducer::default();
+        r.apply(&poll(T0, "waiting"));
+        let mut precise = poll(T0 + Duration::seconds(5), "blocked");
+        if let EventKind::StatusPoll {
+            waiting_for,
+            agent_id,
+            ..
+        } = &mut precise.kind
+        {
+            *waiting_for = Some(WaitingFor::PermissionPrompt);
+            *agent_id = Some("7c5dcf5d".into());
+        }
+        r.apply(&precise);
+        let s = only(r);
+        assert_eq!(s.state, State::Blocked);
+        assert_eq!(s.waiting_for, Some(WaitingFor::PermissionPrompt));
+        assert_eq!(s.since, T0, "the wait started at the first poll");
+        assert_eq!(s.agent_id.as_deref(), Some("7c5dcf5d"));
     }
 }
