@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 
 use crate::commands::doctor::{VendorProbe, probe_vendor};
 use crate::paths::tilde;
-use crate::{Ctx, EXIT_OK, EXIT_VENDOR_UNAVAILABLE};
+use crate::{Ctx, EXIT_OK, EXIT_VENDOR_UNAVAILABLE, json};
 
 pub const MARKER: &str = "bogyman hook";
 
@@ -356,7 +356,11 @@ fn uninstall_codex(ctx: &Ctx, dry_run: bool) -> Result<Report> {
     Ok(rep)
 }
 
-fn targets(claude: bool, codex: bool) -> Result<(Option<VendorProbe>, Option<VendorProbe>)> {
+/// The chosen targets, plus any "not on PATH" warnings. The warnings ride along
+/// instead of going straight to stderr so `--json` can report them in `data.lines`.
+type Targets = (Option<VendorProbe>, Option<VendorProbe>, Vec<String>);
+
+fn targets(claude: bool, codex: bool) -> Result<Targets> {
     let c = probe_vendor("claude");
     let x = probe_vendor("codex");
     let want_claude = claude || (!codex && c.found);
@@ -366,33 +370,29 @@ fn targets(claude: bool, codex: bool) -> Result<(Option<VendorProbe>, Option<Ven
             "neither claude nor codex found on PATH; pass --claude or --codex to register anyway"
         ));
     }
+    let mut warnings = Vec::new();
     if claude && !c.found {
-        eprintln!("bogyman: claude not found on PATH; registering hooks anyway");
+        warnings.push("claude not found on PATH; registering hooks anyway".to_string());
     }
     if codex && !x.found {
-        eprintln!("bogyman: codex not found on PATH; registering hooks anyway");
+        warnings.push("codex not found on PATH; registering hooks anyway".to_string());
     }
-    Ok((want_claude.then_some(c), want_codex.then_some(x)))
+    Ok((want_claude.then_some(c), want_codex.then_some(x), warnings))
 }
 
-fn finish(ctx: &Ctx, reports: Vec<Report>, dry_run: bool, verb: &str) -> Result<u8> {
+fn finish(ctx: &Ctx, command: &str, reports: Vec<Report>, dry_run: bool, verb: &str) -> Result<u8> {
     let changed = reports.iter().any(|r| r.changed);
+    let lines: Vec<String> = reports.iter().flat_map(|r| r.lines.clone()).collect();
     if ctx.json {
-        println!(
-            "{}",
-            serde_json::json!({
-                "schema": bogyman_core::SCHEMA,
-                "changed": changed,
-                "dry_run": dry_run,
-                "lines": reports.iter().flat_map(|r| r.lines.clone()).collect::<Vec<_>>(),
-            })
-        );
+        json::ok(
+            ctx,
+            command,
+            serde_json::json!({"changed": changed, "dry_run": dry_run, "lines": lines}),
+        )?;
         return Ok(EXIT_OK);
     }
-    for r in &reports {
-        for l in &r.lines {
-            println!("{l}");
-        }
+    for l in &lines {
+        println!("{l}");
     }
     if dry_run {
         println!("\nDry run: nothing written.");
@@ -405,21 +405,29 @@ fn finish(ctx: &Ctx, reports: Vec<Report>, dry_run: bool, verb: &str) -> Result<
 }
 
 pub fn install(ctx: &Ctx, claude: bool, codex: bool, dry_run: bool) -> Result<u8> {
-    let (c, x) = match targets(claude, codex) {
+    let (c, x, warnings) = match targets(claude, codex) {
         Ok(t) => t,
         Err(e) => {
-            eprintln!("bogyman: {e}");
+            let msg = e.to_string();
+            if ctx.json {
+                json::err(ctx, "install", EXIT_VENDOR_UNAVAILABLE, &msg);
+            } else {
+                eprintln!("bogyman: {msg}");
+            }
             return Ok(EXIT_VENDOR_UNAVAILABLE);
         }
     };
-    let mut reports = Vec::new();
+    let mut reports = vec![Report {
+        lines: warnings,
+        changed: false,
+    }];
     if let Some(p) = c {
         reports.push(install_claude(ctx, &p, dry_run)?);
     }
     if let Some(p) = x {
         reports.push(install_codex(ctx, &p, dry_run)?);
     }
-    finish(ctx, reports, dry_run, "Hooks registered")
+    finish(ctx, "install", reports, dry_run, "Hooks registered")
 }
 
 pub fn uninstall(ctx: &Ctx, claude: bool, codex: bool, dry_run: bool) -> Result<u8> {
@@ -431,7 +439,7 @@ pub fn uninstall(ctx: &Ctx, claude: bool, codex: bool, dry_run: bool) -> Result<
     if codex || both {
         reports.push(uninstall_codex(ctx, dry_run)?);
     }
-    finish(ctx, reports, dry_run, "Hooks removed")
+    finish(ctx, "uninstall", reports, dry_run, "Hooks removed")
 }
 
 #[cfg(test)]

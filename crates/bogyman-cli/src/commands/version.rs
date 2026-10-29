@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 
-use crate::{Ctx, EXIT_OK};
+use crate::{Ctx, EXIT_OK, json};
 
 pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const GIT_COMMIT: &str = env!("BOGYMAN_GIT_COMMIT");
@@ -66,10 +66,10 @@ pub fn dirty() -> bool {
 
 pub fn run(ctx: &Ctx) -> Result<u8> {
     if ctx.json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&serde_json::json!({
-                "schema": bogyman_core::SCHEMA,
+        json::ok(
+            ctx,
+            "version",
+            serde_json::json!({
                 "version": PKG_VERSION,
                 "commit": GIT_COMMIT,
                 "dirty": dirty(),
@@ -79,8 +79,8 @@ pub fn run(ctx: &Ctx) -> Result<u8> {
                 "profile": PROFILE,
                 "rustc": RUSTC,
                 "binary": std::env::current_exe().ok(),
-            }))?
-        );
+            }),
+        )?;
         return Ok(EXIT_OK);
     }
     let mut lines = vec![format!("bogyman {LINE}")];

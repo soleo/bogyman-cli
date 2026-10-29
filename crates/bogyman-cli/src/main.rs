@@ -2,6 +2,7 @@
 
 mod commands;
 mod config;
+mod json;
 mod paths;
 mod refresh;
 mod render;
@@ -140,6 +141,25 @@ enum Cmd {
     Version,
 }
 
+impl Cmd {
+    /// The name this command reports in its `--json` envelope.
+    fn name(&self) -> &'static str {
+        match self {
+            Cmd::Ls { .. } => "ls",
+            Cmd::Waiting => "waiting",
+            Cmd::Status { .. } => "status",
+            Cmd::Show { .. } => "show",
+            Cmd::Send { .. } => "send",
+            Cmd::Hook { .. } => "hook",
+            Cmd::Install { .. } => "install",
+            Cmd::Uninstall { .. } => "uninstall",
+            Cmd::Doctor { .. } => "doctor",
+            Cmd::Gc => "gc",
+            Cmd::Version => "version",
+        }
+    }
+}
+
 /// Everything a command needs besides its own arguments.
 pub struct Ctx {
     pub json: bool,
@@ -174,6 +194,7 @@ fn main() -> ExitCode {
         config,
     };
 
+    let command = cli.cmd.name();
     let result: Result<u8> = match cli.cmd {
         Cmd::Ls { all, watch } => commands::ls::run(&ctx, all, watch),
         Cmd::Waiting => commands::waiting::run(&ctx),
@@ -199,7 +220,11 @@ fn main() -> ExitCode {
     match result {
         Ok(code) => ExitCode::from(code),
         Err(e) => {
-            eprintln!("bogyman: {e:#}");
+            if ctx.json {
+                json::err(&ctx, command, EXIT_ERROR, &format!("{e:#}"));
+            } else {
+                eprintln!("bogyman: {e:#}");
+            }
             ExitCode::from(EXIT_ERROR)
         }
     }
