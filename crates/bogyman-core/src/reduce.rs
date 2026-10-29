@@ -134,6 +134,50 @@ fn set_state(
     s.source = source;
 }
 
+/// Fold a poller's status word into the session. A hook event beats a poll of
+/// the same age; a poll that agrees keeps the precise blocked reason.
+fn apply_poll_status(
+    s: &mut Session,
+    status: &str,
+    poll_waiting: Option<WaitingFor>,
+    at: OffsetDateTime,
+) {
+    let hook_is_fresher = s.source == Source::Hook && s.observed_at >= at;
+    if hook_is_fresher {
+        return;
+    }
+    if let Some((state, waiting)) = poll_state(status) {
+        let waiting = if state == State::Blocked {
+            poll_waiting.or(waiting)
+        } else {
+            waiting
+        };
+        // Don't downgrade a precise blocked reason to "unknown" on a poll that agrees.
+        let waiting = if state == State::Blocked
+            && s.state == State::Blocked
+            && waiting == Some(WaitingFor::Unknown)
+        {
+            s.waiting_for.or(waiting)
+        } else {
+            waiting
+        };
+        if s.state != state || s.waiting_for != waiting {
+            let d = if state == State::Blocked {
+                s.waiting_detail.clone()
+            } else {
+                None
+            };
+            let refined = s.state == state;
+            let since = s.since;
+            set_state(s, state, waiting, d, at, Source::Poll);
+            if refined {
+                // Only the reason got more precise; the wait itself is the same one.
+                s.since = since;
+            }
+        }
+    }
+}
+
 fn apply_event(s: &mut Session, ev: &Event, redact: bool) {
     // Metadata that every event may carry.
     if s.cwd.is_none() && ev.cwd.is_some() {
@@ -189,40 +233,43 @@ fn apply_event(s: &mut Session, ev: &Event, redact: bool) {
         {
             s.started_at = *st;
         }
-        // A hook event beats a poll of the same age.
-        let hook_is_fresher = s.source == Source::Hook && s.observed_at >= ev.at;
-        if hook_is_fresher {
-            return;
+        apply_poll_status(s, status, *poll_waiting, ev.at);
+        s.observed_at = s.observed_at.max(ev.at);
+        return;
+    }
+
+    if let EventKind::RolloutPoll {
+        status,
+        name,
+        host,
+        model,
+        tokens,
+        summary,
+        started_at,
+    } = &ev.kind
+    {
+        if name.is_some() {
+            s.name = name.clone();
         }
-        if let Some((state, waiting)) = poll_state(status) {
-            let waiting = if state == State::Blocked {
-                poll_waiting.or(waiting)
-            } else {
-                waiting
-            };
-            // Don't downgrade a precise blocked reason to "unknown" on a poll that agrees.
-            let waiting = if state == State::Blocked
-                && s.state == State::Blocked
-                && waiting == Some(WaitingFor::Unknown)
-            {
-                s.waiting_for.or(waiting)
-            } else {
-                waiting
-            };
-            if s.state != state || s.waiting_for != waiting {
-                let d = if state == State::Blocked {
-                    s.waiting_detail.clone()
-                } else {
-                    None
-                };
-                let refined = s.state == state;
-                let since = s.since;
-                set_state(s, state, waiting, d, ev.at, Source::Poll);
-                if refined {
-                    // Only the reason got more precise; the wait itself is the same one.
-                    s.since = since;
-                }
-            }
+        if let Some(h) = host {
+            s.host = *h;
+        }
+        if model.is_some() {
+            s.model = model.clone();
+        }
+        if tokens.is_some() {
+            s.tokens = tokens.clone();
+        }
+        if summary.is_some() && !redact {
+            s.summary = summary.as_deref().map(clip_detail);
+        }
+        if let Some(st) = started_at
+            && *st < s.started_at
+        {
+            s.started_at = *st;
+        }
+        if let Some(status) = status {
+            apply_poll_status(s, status, None, ev.at);
         }
         s.observed_at = s.observed_at.max(ev.at);
         return;
@@ -390,7 +437,9 @@ fn apply_event(s: &mut Session, ev: &Event, redact: bool) {
                 set_state(s, State::Unknown, None, None, ev.at, Source::Hook);
             }
         }
-        EventKind::StatusPoll { .. } | EventKind::TranscriptPoll { .. } => {
+        EventKind::StatusPoll { .. }
+        | EventKind::TranscriptPoll { .. }
+        | EventKind::RolloutPoll { .. } => {
             unreachable!("handled above")
         }
     }
@@ -714,5 +763,54 @@ mod tests {
         assert_eq!(s.waiting_for, Some(WaitingFor::PermissionPrompt));
         assert_eq!(s.since, T0, "the wait started at the first poll");
         assert_eq!(s.agent_id.as_deref(), Some("7c5dcf5d"));
+    }
+
+    #[test]
+    fn a_rollout_fills_codex_detail_but_never_overrides_a_newer_hook() {
+        let rollout = |at: OffsetDateTime, status: &str| {
+            let mut e = ev(
+                at,
+                EventKind::RolloutPoll {
+                    status: Some(status.into()),
+                    name: Some("deps-audit".into()),
+                    host: Some(Host::Terminal),
+                    model: Some("gpt-5.5-codex".into()),
+                    tokens: Some(crate::Tokens {
+                        input: 5400,
+                        output: 410,
+                    }),
+                    summary: Some("pinned both".into()),
+                    started_at: None,
+                },
+            );
+            e.vendor = Vendor::Codex;
+            e.source = Source::Poll;
+            e
+        };
+        let mut hook = ev(
+            T0 + Duration::seconds(10),
+            EventKind::PermissionRequest {
+                tool: "shell".into(),
+                detail: Some("shell: npm i".into()),
+            },
+        );
+        hook.vendor = Vendor::Codex;
+
+        let mut r = Reducer::default();
+        r.apply(&rollout(T0, "working"));
+        r.apply(&hook);
+        // A rollout written before the hook fired still says "working".
+        r.apply(&rollout(T0 + Duration::seconds(5), "working"));
+        let s = r.sessions.values().next().unwrap().clone();
+        assert_eq!(s.state, State::Blocked);
+        assert_eq!(s.model.as_deref(), Some("gpt-5.5-codex"));
+        assert_eq!(s.tokens.as_ref().map(|t| t.output), Some(410));
+        assert_eq!(s.name.as_deref(), Some("deps-audit"));
+
+        // The turn finishing after the prompt was answered does move it on.
+        r.apply(&rollout(T0 + Duration::seconds(30), "idle"));
+        let s = only(r);
+        assert_eq!(s.state, State::Done);
+        assert_eq!(s.summary.as_deref(), Some("pinned both"));
     }
 }

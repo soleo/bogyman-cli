@@ -1,7 +1,7 @@
 //! Bring the store up to date and hand back the sessions a command should see.
 
 use anyhow::{Context, Result};
-use bogyman_collectors::{claude_agents, claude_sessions, claude_transcript};
+use bogyman_collectors::{claude_agents, claude_sessions, claude_transcript, codex_rollout};
 use bogyman_core::{Event, EventKind, Host, ReducerOptions, Session, State, Vendor, poll_state};
 use bogyman_store::Store;
 use time::OffsetDateTime;
@@ -27,6 +27,10 @@ pub fn load_sessions(ctx: &Ctx, poll: bool) -> Result<Vec<Session>> {
             &store,
             claude_sessions::poll(&ctx.paths.claude_sessions_dir, now),
         )?;
+    }
+    if poll && ctx.config.collectors.codex_rollout {
+        let events = rollout_events(ctx, &store.load_snapshot()?, now);
+        append_fresh(ctx, &store, events)?;
     }
     let opts = ReducerOptions {
         redact: ctx.config.store.redact,
@@ -89,6 +93,36 @@ pub fn poll_claude_agents(ctx: &Ctx) -> Result<usize> {
     append_fresh(ctx, &store, events)
 }
 
+/// Codex sessions whose rollout changed in the last day and since bogyman last
+/// looked. An unchanged file is not even opened.
+fn rollout_events(
+    ctx: &Ctx,
+    snapshot: &std::collections::HashMap<String, Session>,
+    now: OffsetDateTime,
+) -> Vec<Event> {
+    let since = std::time::SystemTime::now() - std::time::Duration::from_secs(24 * 3600);
+    let files = codex_rollout::recent_files(&ctx.paths.codex_sessions_dir, since);
+    if files.is_empty() {
+        return Vec::new();
+    }
+    let names = codex_rollout::thread_names(&ctx.paths.codex_session_index);
+    let mut out = Vec::new();
+    for (path, mtime) in files {
+        let mtime = OffsetDateTime::from(mtime);
+        let known = codex_rollout::id_from_file_name(&path)
+            .and_then(|id| snapshot.get(&Session::key(Vendor::Codex, &id)));
+        if known.is_some_and(|s| s.observed_at >= mtime && s.tokens.is_some()) {
+            continue;
+        }
+        let Some(r) = codex_rollout::read(&path) else {
+            continue;
+        };
+        let name = names.get(&r.session_id).cloned();
+        out.push(codex_rollout::event_for(&r, name, mtime.min(now)));
+    }
+    out
+}
+
 /// Append the poll events that tell the snapshot something new.
 fn append_fresh(ctx: &Ctx, store: &Store, events: Vec<Event>) -> Result<usize> {
     let snapshot = store.load_snapshot()?;
@@ -109,6 +143,26 @@ fn append_fresh(ctx: &Ctx, store: &Store, events: Vec<Event>) -> Result<usize> {
 }
 
 fn poll_adds_something(s: &Session, ev: &Event) -> bool {
+    if let EventKind::RolloutPoll {
+        status,
+        name,
+        model,
+        tokens,
+        summary,
+        ..
+    } = &ev.kind
+    {
+        let state_new = status
+            .as_deref()
+            .and_then(poll_state)
+            .is_some_and(|(state, _)| state != s.state && ev.at > s.observed_at);
+        let differs = |new: &Option<String>, old: &Option<String>| new.is_some() && new != old;
+        return state_new
+            || differs(name, &s.name)
+            || differs(model, &s.model)
+            || (tokens.is_some() && *tokens != s.tokens)
+            || differs(summary, &s.summary);
+    }
     let EventKind::StatusPoll {
         status,
         name,
