@@ -65,11 +65,55 @@ entries. Pass `--dry-run` to preview.
 | `bogyman version` | Version, git commit, build date, target. Same line as `--version`. |
 | `bogyman hook <vendor>` | Hook entry point, invoked by the vendor. Reads stdin, appends one row, exits 0. |
 
-Every command takes `--json` (schema 1), `--vendor claude|codex`, `--cwd <path>`
-and `--no-color`. Human output is a table on a TTY and header-less TSV when piped.
+Every command takes `--json`, `--vendor claude|codex`, `--cwd <path>` and
+`--no-color`. Human output is a table on a TTY and header-less TSV when piped.
 
 Exit codes: 0 ok, 1 error, 2 bad usage, 3 empty result (`waiting`), 4 vendor
 command unavailable.
+
+## JSON
+
+`--json` is the contract for scripts and supervising agents. Every command
+answers with the same envelope, schema 1:
+
+```json
+{"schema":1,"command":"ls","ok":true,"data":{"sessions":[]}}
+{"schema":1,"command":"show","ok":false,"error":{"message":"no session matches 'zzz'","exit":1}}
+```
+
+`command` names the command that ran, so a reader can tell responses apart
+without tracking what it asked for. What sits under `data`:
+
+| Command | `data` |
+| --- | --- |
+| `ls`, `waiting` | `sessions` — the same session records the tables are built from |
+| `status` | `blocked`, `working`, `done`, `failed`, `stale`, `total`, `line` |
+| `show` | `session`, `events` |
+| `send` | `id`, `vendor`, `detail` |
+| `install`, `uninstall` | `changed`, `dry_run`, `lines` |
+| `doctor` | `bogyman`, `build`, `store`, `config`, `claude`, `codex`, `warnings` |
+| `gc` | `retention_days`, `events_removed`, `sessions_removed` |
+| `version` | `version`, `commit`, `dirty`, `commit_date`, `built_at`, `target`, `profile`, `rustc`, `binary` |
+
+Four rules the output keeps, so a consumer does not have to special-case
+anything:
+
+- **Failures are JSON too**, on stdout, with `ok: false` and an `error` of
+  `{message, exit}`. One stream is always parseable; the exit code says the
+  same thing as `error.exit`.
+- **Pretty on a TTY, one line when piped**, the same split the tables use. Pipe
+  through `jq .` to read a piped response by eye.
+- **`ls --watch --json` is an NDJSON stream** — one envelope per line per
+  second, with no screen clear, so `while read` and `jq --unbuffered` both work.
+- **An empty result is a success.** `waiting` with nothing blocked is
+  `ok: true` with an empty list and still exits 3, so `&&` chains behave.
+
+```sh
+bogyman ls --json | jq '.data.sessions[] | select(.state=="blocked") | {name, host, waiting_for, since}'
+```
+
+Session records carry their own `schema` field; it is the stored record's
+version and tracks the envelope's.
 
 ## Where things live
 

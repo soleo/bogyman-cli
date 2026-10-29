@@ -3,7 +3,7 @@ use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
 use crate::render::{ago, fmt_age, print_rows, truncate, waiting_cell};
-use crate::{Ctx, EXIT_OK, refresh, resolve};
+use crate::{Ctx, EXIT_OK, json, refresh, resolve};
 
 pub fn run(ctx: &Ctx, id: &str, open: bool) -> Result<u8> {
     let now = OffsetDateTime::now_utc();
@@ -13,14 +13,11 @@ pub fn run(ctx: &Ctx, id: &str, open: bool) -> Result<u8> {
     let events = store.events_for(s.vendor, &s.vendor_session_id, 20)?;
 
     if ctx.json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&serde_json::json!({
-                "schema": bogyman_core::SCHEMA,
-                "session": s,
-                "events": events,
-            }))?
-        );
+        json::ok(
+            ctx,
+            "show",
+            serde_json::json!({"session": s, "events": events}),
+        )?;
     } else {
         let line = |k: &str, v: String| {
             if !v.is_empty() {
