@@ -183,6 +183,15 @@ pub enum Plan {
 
 /// Decide what to do. `procs` is the process table; `forced` is `focus.terminal`.
 pub fn plan(s: &Session, procs: &HashMap<u32, Proc>, forced: Option<App>) -> Result<Plan> {
+    // Ids go on a vendor's command line; one that starts with `-` would be
+    // parsed as a flag (think `--dangerously-skip-permissions`).
+    for id in std::iter::once(&s.vendor_session_id).chain(s.agent_id.iter()) {
+        if id.starts_with('-') {
+            return Err(anyhow!(
+                "refusing to pass the id {id:?} to a vendor command"
+            ));
+        }
+    }
     if matches!(s.host, Host::Desktop | Host::DesktopCowork) {
         return Ok(Plan::Activate {
             app: "Claude".into(),
@@ -750,6 +759,18 @@ mod tests {
         let s = session(Vendor::Codex, State::Working, None);
         let err = plan(&s, &procs, None).unwrap_err().to_string();
         assert!(err.contains("no process id"), "{err}");
+    }
+
+    #[test]
+    fn an_id_that_looks_like_a_flag_is_refused() {
+        let procs = parse_ps(PS);
+        let mut s = session(Vendor::ClaudeCode, State::Stopped, None);
+        s.vendor_session_id = "--dangerously-skip-permissions".into();
+        assert!(plan(&s, &procs, None).is_err());
+        let mut b = session(Vendor::ClaudeCode, State::Working, None);
+        b.kind = Kind::Background;
+        b.agent_id = Some("-x".into());
+        assert!(plan(&b, &procs, None).is_err());
     }
 
     #[test]
