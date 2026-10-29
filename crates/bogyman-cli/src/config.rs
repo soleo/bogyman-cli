@@ -96,6 +96,9 @@ pub struct Collectors {
     /// Run `claude agents --json --all` for background sessions and precise
     /// wait reasons. Costs ~100 ms a run, so only the daemon and `ls --watch` do it.
     pub claude_agents: bool,
+    /// Tail Codex rollout files for model, tokens and turn status. Cheap file
+    /// reads, so every query does it.
+    pub codex_rollout: bool,
     /// Tail local Cowork transcripts. Not implemented yet.
     pub cowork: bool,
 }
@@ -106,6 +109,7 @@ impl Default for Collectors {
             claude_sessions: true,
             claude_transcript: true,
             claude_agents: true,
+            codex_rollout: true,
             cowork: false,
         }
     }

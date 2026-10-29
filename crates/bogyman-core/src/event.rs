@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use time::OffsetDateTime;
 
-use crate::model::{Host, Kind, Source, Vendor, WaitingFor};
+use crate::model::{Host, Kind, Source, Tokens, Vendor, WaitingFor};
 use crate::{clip_detail, strip_control};
 
 /// Payload keys that carry content rather than metadata. They never reach the store.
@@ -101,6 +101,18 @@ pub enum EventKind {
         #[serde(default)]
         agent_id: Option<String>,
     },
+    /// What a Codex rollout file says: turn status, model, token totals and the
+    /// last reply.
+    RolloutPoll {
+        status: Option<String>,
+        name: Option<String>,
+        host: Option<Host>,
+        model: Option<String>,
+        tokens: Option<Tokens>,
+        summary: Option<String>,
+        #[serde(default, with = "time::serde::rfc3339::option")]
+        started_at: Option<OffsetDateTime>,
+    },
     Unknown {
         name: String,
     },
@@ -176,6 +188,18 @@ impl Event {
                 fix(model);
             }
             EventKind::TranscriptPoll { model, .. } => fix(model),
+            EventKind::RolloutPoll {
+                status,
+                name,
+                model,
+                summary,
+                ..
+            } => {
+                *status = status.as_deref().map(clip_detail);
+                *name = name.as_deref().map(clip_detail);
+                fix(model);
+                fix(summary);
+            }
             EventKind::Unknown { name } => *name = clip_detail(name),
             EventKind::PromptSubmitted => {}
         }
@@ -202,6 +226,9 @@ impl EventKind {
             EventKind::TranscriptPoll { model, .. } => {
                 format!("transcript {}", model.as_deref().unwrap_or("?"))
             }
+            EventKind::RolloutPoll { status, .. } => {
+                format!("rollout {}", status.as_deref().unwrap_or("?"))
+            }
             EventKind::Unknown { name } => format!("unknown {name}"),
         }
     }
@@ -222,6 +249,7 @@ impl EventKind {
                 name.as_deref()
             }
             EventKind::TranscriptPoll { model, .. } => model.as_deref(),
+            EventKind::RolloutPoll { summary, .. } => summary.as_deref(),
             _ => None,
         }
     }
