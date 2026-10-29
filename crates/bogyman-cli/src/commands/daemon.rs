@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
 use crate::paths::tilde;
-use crate::{Ctx, EXIT_OK, json, refresh};
+use crate::{Ctx, EXIT_OK, json, notify, refresh};
 
 const TICK: Duration = Duration::from_secs(1);
 const GC_EVERY: Duration = Duration::from_secs(6 * 3600);
@@ -34,6 +34,7 @@ pub enum Action {
     Stop,
     Status,
     Run,
+    NotifyTest,
     Install { dry_run: bool },
     Uninstall { dry_run: bool },
 }
@@ -103,6 +104,7 @@ fn write_state(path: &Path, state: &State) -> Result<()> {
 pub fn run(ctx: &Ctx, action: Action) -> Result<u8> {
     match action {
         Action::Run => run_loop(ctx),
+        Action::NotifyTest => notify_test(ctx),
         Action::Start => start(ctx),
         Action::Stop => stop(ctx),
         Action::Status => status(ctx),
@@ -159,6 +161,7 @@ fn run_loop(ctx: &Ctx) -> Result<u8> {
     let mut agents = Timer::new(Duration::from_secs(ctx.config.poll.claude_agents_secs));
     let mut refresh_timer = Timer::new(Duration::from_secs(ctx.config.poll.codex_rollout_secs));
     let mut gc = Timer::new(GC_EVERY);
+    let mut notifier = notify::Notifier::new(started_at);
     let state_file = state_path(ctx);
     loop {
         let now = OffsetDateTime::now_utc();
@@ -170,8 +173,20 @@ fn run_loop(ctx: &Ctx) -> Result<u8> {
         if refresh_timer.due() {
             // A query's own refresh: session files, transcripts, rollouts, then
             // fold everything new into the snapshot.
-            let r = refresh::load_sessions(ctx, true).map(|_| 0);
-            state.refresh.record(now, r);
+            match refresh::load_sessions(ctx, true) {
+                Ok(sessions) => {
+                    state.refresh.record(now, Ok(0));
+                    if ctx.config.notify.enabled {
+                        for note in notifier.due(&ctx.config.notify, &sessions, now) {
+                            match notify::send(&ctx.config.notify, &note) {
+                                Ok(()) => state.notifications_sent += 1,
+                                Err(e) => ctx.paths.log(&format!("daemon: notify: {e:#}")),
+                            }
+                        }
+                    }
+                }
+                Err(e) => state.refresh.record(now, Err(e)),
+            }
         }
         if gc.due() {
             let r = refresh::open_store(ctx)
@@ -194,6 +209,25 @@ fn run_loop(ctx: &Ctx) -> Result<u8> {
         }
         std::thread::sleep(TICK);
     }
+}
+
+fn notify_test(ctx: &Ctx) -> Result<u8> {
+    let note = notify::Note {
+        session_id: "cc-test".into(),
+        title: "bogyman test needs you".into(),
+        body: "permission · this is what a blocked session looks like".into(),
+    };
+    notify::send(&ctx.config.notify, &note)?;
+    let mut line = "sent a test notification".to_string();
+    if !ctx.config.notify.enabled {
+        line.push_str("; the daemon won't send real ones until notify.enabled = true");
+    }
+    report(
+        ctx,
+        "notify-test",
+        serde_json::json!({"enabled": ctx.config.notify.enabled}),
+        line,
+    )
 }
 
 fn start(ctx: &Ctx) -> Result<u8> {

@@ -3,6 +3,7 @@
 mod commands;
 mod config;
 mod json;
+mod notify;
 mod paths;
 mod refresh;
 mod render;
@@ -169,6 +170,8 @@ enum DaemonCmd {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Send a sample notification, to check delivery and permissions.
+    NotifyTest,
     /// Remove the login service.
     Uninstall {
         #[arg(long)]
@@ -184,6 +187,7 @@ impl From<DaemonCmd> for commands::daemon::Action {
             DaemonCmd::Stop => Action::Stop,
             DaemonCmd::Status => Action::Status,
             DaemonCmd::Run => Action::Run,
+            DaemonCmd::NotifyTest => Action::NotifyTest,
             DaemonCmd::Install { dry_run } => Action::Install { dry_run },
             DaemonCmd::Uninstall { dry_run } => Action::Uninstall { dry_run },
         }
