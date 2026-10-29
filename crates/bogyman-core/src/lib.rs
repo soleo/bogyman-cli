@@ -3,6 +3,7 @@
 
 pub mod event;
 pub mod liveness;
+pub mod lock;
 pub mod model;
 pub mod reduce;
 

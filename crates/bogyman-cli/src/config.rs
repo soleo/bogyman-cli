@@ -34,13 +34,20 @@ impl Default for Poll {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct Notify {
+    /// The daemon sends notifications only when this is on.
     pub enabled: bool,
+    /// States that notify on entry: any of blocked, failed, done.
     pub on: Vec<String>,
+    /// Least time between two notifications for one session.
     pub debounce_secs: u64,
+    /// Play a sound with the macOS notification.
+    pub sound: bool,
+    /// Deliver through this command instead of the built-in notifier.
+    /// `{title}`, `{body}` and `{id}` are filled in.
+    pub command: Vec<String>,
 }
 
 impl Default for Notify {
@@ -49,14 +56,17 @@ impl Default for Notify {
             enabled: false,
             on: vec!["blocked".into(), "failed".into()],
             debounce_secs: 30,
+            sound: true,
+            command: Vec::new(),
         }
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct Focus {
+    /// `auto` to detect the terminal from the session's process tree, or one of
+    /// ghostty, iterm2, terminal, wezterm, kitty.
     pub terminal: String,
 }
 

@@ -1,4 +1,6 @@
+pub mod daemon;
 pub mod doctor;
+pub mod focus;
 pub mod gc;
 pub mod hook;
 pub mod install;
