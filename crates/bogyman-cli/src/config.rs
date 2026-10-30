@@ -109,7 +109,10 @@ pub struct Collectors {
     /// Tail Codex rollout files for model, tokens and turn status. Cheap file
     /// reads, so every query does it.
     pub codex_rollout: bool,
-    /// Tail local Cowork transcripts. Not implemented yet.
+    /// Read Claude Desktop's session index for its post-turn summaries.
+    pub desktop_index: bool,
+    /// Accepted for older configs. Local Cowork keeps its transcripts inside
+    /// its VM, where bogyman can't read them, so this does nothing.
     pub cowork: bool,
 }
 
@@ -120,6 +123,7 @@ impl Default for Collectors {
             claude_transcript: true,
             claude_agents: true,
             codex_rollout: true,
+            desktop_index: true,
             cowork: false,
         }
     }

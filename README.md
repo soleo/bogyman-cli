@@ -17,7 +17,9 @@ It covers the Claude Code hook stream, the Codex hook / notify stream, a cheap
 poll of Claude Code's per-session status files, and a poll of
 `claude agents --json` that adds background sessions and the exact reason a
 session waits, and a tail of Codex rollout files for each Codex session's model,
-token totals and last reply. `bogyman focus` brings any of them in front of you.
+token totals and last reply. Claude Desktop sessions pick up Desktop's own
+post-turn summary from its session index. `bogyman focus` brings any of them in
+front of you.
 An optional daemon keeps it all current in the background and can notify you
 when a session gets blocked or fails.
 
@@ -140,6 +142,12 @@ version and tracks the envelope's.
 
 `BOGYMAN_HOME` puts everything under one directory. `CLAUDE_CONFIG_DIR` and
 `CODEX_HOME` are honored the same way the vendors honor them.
+`BOGYMAN_DESKTOP_DIR` points at Claude Desktop's app data folder
+(default `~/Library/Application Support/Claude` on macOS, `~/.config/Claude`
+on Linux).
+
+Local Cowork sessions aren't covered: Cowork keeps its transcripts inside its
+VM's disk image, which bogyman can't read.
 
 ```toml
 [store]
@@ -151,6 +159,7 @@ claude_sessions = true     # poll ~/.claude/sessions/*.json on each query
 claude_transcript = true   # read each live session's transcript tail for the model in use
 claude_agents = true       # poll `claude agents --json --all` (daemon and `ls --watch`; ~100 ms a run)
 codex_rollout = true       # tail ~/.codex/sessions rollouts changed in the last day, on each query
+desktop_index = true       # Claude Desktop's session index: post-turn summaries for sessions bogyman tracks
 
 [poll]
 claude_agents_secs = 5     # how often the daemon (or a watch) re-runs `claude agents`
