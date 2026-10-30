@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use bogyman_collectors::{
     claude_agents, claude_hooks, claude_sessions, claude_transcript, codex_hooks, codex_rollout,
+    desktop_index,
 };
 use bogyman_core::{EventKind, Host, Kind, Source, Vendor, WaitingFor};
 use serde_json::Value;
@@ -322,4 +323,42 @@ fn codex_rollout_scan_ignores_files_older_than_the_cutoff() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/codex/0.164");
     let future = std::time::SystemTime::now() + std::time::Duration::from_secs(3600);
     assert!(codex_rollout::recent_files(&root.join("sessions"), future).is_empty());
+}
+
+#[test]
+fn desktop_index_entries_link_by_cli_session_id_and_carry_the_summary() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/claude-desktop/4.4212");
+    let mut files = desktop_index::recent_files(&root, std::time::UNIX_EPOCH);
+    files.sort();
+    assert_eq!(files.len(), 3);
+    let entries: Vec<_> = files
+        .iter()
+        .filter_map(|f| desktop_index::read(f))
+        .collect();
+    // The entry without a cliSessionId can't be linked to anything.
+    assert_eq!(entries.len(), 2);
+
+    let done = &entries[0];
+    assert_eq!(done.cli_session_id, "1f0e2c9a-6d0b-4c11-9f39-2a77c1d4e8b5");
+    assert_eq!(done.title.as_deref(), Some("tag-web"));
+    assert_eq!(
+        done.summary.as_deref(),
+        Some("Fixed the flaky retry test and pushed the branch"),
+        "an empty needs_action adds nothing"
+    );
+    let asking = &entries[1];
+    assert_eq!(
+        asking.summary.as_deref(),
+        Some("needs: Pick a migration name")
+    );
+
+    let ev = desktop_index::event_for(done, now());
+    assert_eq!(ev.vendor, Vendor::ClaudeCode);
+    assert_eq!(ev.source, Source::Poll);
+    assert!(
+        ev.raw.is_null(),
+        "MCP configs and paths never ride along raw"
+    );
+    assert!(matches!(ev.kind, EventKind::IndexPoll { .. }));
 }

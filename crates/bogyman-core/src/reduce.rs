@@ -275,6 +275,17 @@ fn apply_event(s: &mut Session, ev: &Event, redact: bool) {
         return;
     }
 
+    if let EventKind::IndexPoll { title, summary } = &ev.kind {
+        // The label names the project, so it only fills a gap.
+        if s.name.is_none() && title.is_some() {
+            s.name = title.clone();
+        }
+        if summary.is_some() && !redact {
+            s.summary = summary.as_deref().map(clip_detail);
+        }
+        return;
+    }
+
     if let EventKind::TranscriptPoll { model, host } = &ev.kind {
         if model.is_some() {
             s.model = model.clone();
@@ -439,7 +450,8 @@ fn apply_event(s: &mut Session, ev: &Event, redact: bool) {
         }
         EventKind::StatusPoll { .. }
         | EventKind::TranscriptPoll { .. }
-        | EventKind::RolloutPoll { .. } => {
+        | EventKind::RolloutPoll { .. }
+        | EventKind::IndexPoll { .. } => {
             unreachable!("handled above")
         }
     }
@@ -812,5 +824,42 @@ mod tests {
         let s = only(r);
         assert_eq!(s.state, State::Done);
         assert_eq!(s.summary.as_deref(), Some("pinned both"));
+    }
+
+    #[test]
+    fn the_desktop_index_fills_gaps_but_never_moves_state() {
+        let mut r = Reducer::default();
+        r.apply(&ev(
+            T0,
+            EventKind::PermissionRequest {
+                tool: "Bash".into(),
+                detail: Some("Bash: npm test".into()),
+            },
+        ));
+        let index = |title: &str| {
+            let mut e = ev(
+                T0 + Duration::seconds(30),
+                EventKind::IndexPoll {
+                    title: Some(title.into()),
+                    summary: Some("Fixed the flaky retry test".into()),
+                },
+            );
+            e.source = Source::Poll;
+            e
+        };
+        r.apply(&index("tag-web"));
+        let s = r.sessions.values().next().unwrap().clone();
+        assert_eq!(
+            s.state,
+            State::Blocked,
+            "an index entry never changes state"
+        );
+        assert_eq!(s.since, T0);
+        assert_eq!(s.name.as_deref(), Some("tag-web"), "fills a missing name");
+        assert_eq!(s.summary.as_deref(), Some("Fixed the flaky retry test"));
+        // A real session name is never replaced by the project label.
+        r.apply(&poll(T0 + Duration::seconds(40), "waiting"));
+        r.apply(&index("other-project"));
+        assert_eq!(only(r).name.as_deref(), Some("flaky-test-fix"));
     }
 }
