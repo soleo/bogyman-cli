@@ -35,6 +35,12 @@ verifies it against `SHA256SUMS`, and installs `bogyman` into `~/.local/bin`.
 Set `BOGYMAN_INSTALL_DIR` to install elsewhere, or `BOGYMAN_VERSION=v0.1.0` to
 pin a version. Prefer to read it first? `install.sh` is at the repo root.
 
+Or with Homebrew (macOS and Linux):
+
+```sh
+brew install soleo/bogyman/bogyman
+```
+
 Or build from source:
 
 ```sh
@@ -191,6 +197,18 @@ The release workflow checks the tag against `Cargo.toml`, runs fmt, clippy and
 tests, builds all four targets, and publishes a GitHub release with tarballs
 and a `SHA256SUMS` file. A tag with a suffix such as `v0.2.0-beta.1` becomes a
 pre-release.
+
+A stable release then updates the Homebrew tap,
+[soleo/homebrew-bogyman](https://github.com/soleo/homebrew-bogyman), by
+rendering `Formula/bogyman.rb` with `scripts/homebrew-formula.sh`. That job
+needs a `HOMEBREW_TAP_TOKEN` repository secret: a fine-grained token with
+Contents read and write on the tap repo only. Without it the job skips with a
+notice. To update the tap by hand:
+
+```sh
+gh release download v0.2.0 -p SHA256SUMS
+scripts/homebrew-formula.sh 0.2.0 SHA256SUMS > ../homebrew-bogyman/Formula/bogyman.rb
+```
 
 Crates: `bogyman-core` (session model, events, reducer), `bogyman-store`
 (SQLite), `bogyman-collectors` (vendor parsers), `bogyman-cli` (the binary).
