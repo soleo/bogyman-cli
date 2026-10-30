@@ -1,7 +1,9 @@
 //! Bring the store up to date and hand back the sessions a command should see.
 
 use anyhow::{Context, Result};
-use bogyman_collectors::{claude_agents, claude_sessions, claude_transcript, codex_rollout};
+use bogyman_collectors::{
+    claude_agents, claude_sessions, claude_transcript, codex_rollout, desktop_index,
+};
 use bogyman_core::{Event, EventKind, Host, ReducerOptions, Session, State, Vendor, poll_state};
 use bogyman_store::Store;
 use time::OffsetDateTime;
@@ -31,6 +33,13 @@ pub fn load_sessions(ctx: &Ctx, poll: bool) -> Result<Vec<Session>> {
     if poll && ctx.config.collectors.codex_rollout {
         let events = rollout_events(ctx, &store.load_snapshot()?, now);
         append_fresh(ctx, &store, events)?;
+    }
+    if poll && ctx.config.collectors.desktop_index {
+        let events = desktop_events(ctx, &store.load_snapshot()?, now);
+        for mut ev in events {
+            ev.sanitize(ctx.config.store.redact);
+            store.append(&ev)?;
+        }
     }
     let opts = ReducerOptions {
         redact: ctx.config.store.redact,
@@ -121,6 +130,32 @@ fn rollout_events(
         out.push(codex_rollout::event_for(&r, name, mtime.min(now)));
     }
     out
+}
+
+/// Desktop index entries for Claude sessions bogyman already tracks, when they
+/// would fill in a name or change the summary. The index also holds finished
+/// and adopted sessions, so an unknown id is never a new session.
+fn desktop_events(
+    ctx: &Ctx,
+    snapshot: &std::collections::HashMap<String, Session>,
+    now: OffsetDateTime,
+) -> Vec<Event> {
+    let since = std::time::SystemTime::now() - std::time::Duration::from_secs(24 * 3600);
+    let redact = ctx.config.store.redact;
+    desktop_index::recent_files(&ctx.paths.claude_desktop_dir, since)
+        .iter()
+        .filter_map(|p| desktop_index::read(p))
+        .filter(|e| {
+            let Some(s) = snapshot.get(&Session::key(Vendor::ClaudeCode, &e.cli_session_id)) else {
+                return false;
+            };
+            let name_gap = s.name.is_none() && e.title.is_some();
+            let summary = e.summary.as_deref().map(bogyman_core::clip_detail);
+            let summary_new = !redact && summary.is_some() && summary != s.summary;
+            name_gap || summary_new
+        })
+        .map(|e| desktop_index::event_for(&e, now))
+        .collect()
 }
 
 /// Append the poll events that tell the snapshot something new.

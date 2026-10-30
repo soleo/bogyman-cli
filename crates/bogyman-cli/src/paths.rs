@@ -1,5 +1,6 @@
 //! Where things live. Honors BOGYMAN_HOME (everything under one directory, handy
-//! for tests), XDG_DATA_HOME / XDG_CONFIG_HOME, CLAUDE_CONFIG_DIR and CODEX_HOME.
+//! for tests), XDG_DATA_HOME / XDG_CONFIG_HOME, CLAUDE_CONFIG_DIR and CODEX_HOME,
+//! and BOGYMAN_DESKTOP_DIR for Claude Desktop's app data (tests point it elsewhere).
 
 use std::path::{Path, PathBuf};
 
@@ -17,6 +18,8 @@ pub struct Paths {
     pub codex_config: PathBuf,
     pub codex_sessions_dir: PathBuf,
     pub codex_session_index: PathBuf,
+    /// Claude Desktop's app data folder, where its session index lives.
+    pub claude_desktop_dir: PathBuf,
 }
 
 fn home() -> PathBuf {
@@ -59,6 +62,15 @@ impl Paths {
             codex_config: codex_home.join("config.toml"),
             codex_sessions_dir: codex_home.join("sessions"),
             codex_session_index: codex_home.join("session_index.jsonl"),
+            claude_desktop_dir: env_path("BOGYMAN_DESKTOP_DIR").unwrap_or_else(|| {
+                if cfg!(target_os = "macos") {
+                    home.join("Library/Application Support/Claude")
+                } else {
+                    env_path("XDG_CONFIG_HOME")
+                        .unwrap_or_else(|| home.join(".config"))
+                        .join("Claude")
+                }
+            }),
             codex_home,
         }
     }

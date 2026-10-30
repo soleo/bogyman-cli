@@ -113,6 +113,12 @@ pub enum EventKind {
         #[serde(default, with = "time::serde::rfc3339::option")]
         started_at: Option<OffsetDateTime>,
     },
+    /// Claude Desktop's session index: a project label and Desktop's post-turn
+    /// summary. Never changes the state or host.
+    IndexPoll {
+        title: Option<String>,
+        summary: Option<String>,
+    },
     Unknown {
         name: String,
     },
@@ -200,6 +206,11 @@ impl Event {
                 fix(model);
                 fix(summary);
             }
+            EventKind::IndexPoll { title, summary } => {
+                // A project label, shown like a session name even under redact.
+                *title = title.as_deref().map(clip_detail);
+                fix(summary);
+            }
             EventKind::Unknown { name } => *name = clip_detail(name),
             EventKind::PromptSubmitted => {}
         }
@@ -229,6 +240,7 @@ impl EventKind {
             EventKind::RolloutPoll { status, .. } => {
                 format!("rollout {}", status.as_deref().unwrap_or("?"))
             }
+            EventKind::IndexPoll { .. } => "desktop index".into(),
             EventKind::Unknown { name } => format!("unknown {name}"),
         }
     }
@@ -249,7 +261,9 @@ impl EventKind {
                 name.as_deref()
             }
             EventKind::TranscriptPoll { model, .. } => model.as_deref(),
-            EventKind::RolloutPoll { summary, .. } => summary.as_deref(),
+            EventKind::RolloutPoll { summary, .. } | EventKind::IndexPoll { summary, .. } => {
+                summary.as_deref()
+            }
             _ => None,
         }
     }
