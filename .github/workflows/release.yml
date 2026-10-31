@@ -5,7 +5,7 @@
 #
 # The tag must match the workspace version in Cargo.toml, or the run fails
 # before building anything. A stable release also updates the Homebrew tap
-# (soleo/homebrew-bogyman) when the HOMEBREW_TAP_TOKEN secret is set.
+# (soleo/homebrew-tap) when the HOMEBREW_TAP_TOKEN secret is set.
 #
 # Third-party actions are pinned to commit SHAs; the comment after each pin is
 # the tag it was resolved from. Bump by resolving a newer tag to its SHA.
@@ -136,10 +136,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - name: Render the formula and push it to soleo/homebrew-bogyman
+      - name: Render the formula and push it to soleo/homebrew-tap
         env:
           GH_TOKEN: ${{ github.token }}
-          # A fine-grained token with Contents: write on soleo/homebrew-bogyman only.
+          # A fine-grained token with Contents: write on soleo/homebrew-tap only.
           TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           VERSION: ${{ needs.check.outputs.version }}
         run: |
@@ -148,7 +148,7 @@ jobs:
             exit 0
           fi
           gh release download "$GITHUB_REF_NAME" -p SHA256SUMS
-          git clone --depth 1 "https://x-access-token:${TAP_TOKEN}@github.com/soleo/homebrew-bogyman.git" tap
+          git clone --depth 1 "https://x-access-token:${TAP_TOKEN}@github.com/soleo/homebrew-tap.git" tap
           scripts/homebrew-formula.sh "$VERSION" SHA256SUMS > tap/Formula/bogyman.rb
           cd tap
           if git diff --quiet; then

@@ -4,7 +4,7 @@
 #   scripts/homebrew-formula.sh 0.2.0 SHA256SUMS > Formula/bogyman.rb
 #
 # SHA256SUMS is the file the release workflow publishes next to the tarballs.
-# The release workflow runs this to update soleo/homebrew-bogyman; it also
+# The release workflow runs this to update soleo/homebrew-tap; it also
 # works by hand after downloading SHA256SUMS from a release.
 set -eu
 
