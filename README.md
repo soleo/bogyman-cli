@@ -40,7 +40,7 @@ pin a version. Prefer to read it first? `install.sh` is at the repo root.
 Or with Homebrew (macOS and Linux):
 
 ```sh
-brew install soleo/bogyman/bogyman
+brew install soleo/tap/bogyman
 ```
 
 Or build from source:
@@ -208,7 +208,7 @@ and a `SHA256SUMS` file. A tag with a suffix such as `v0.2.0-beta.1` becomes a
 pre-release.
 
 A stable release then updates the Homebrew tap,
-[soleo/homebrew-bogyman](https://github.com/soleo/homebrew-bogyman), by
+[soleo/homebrew-tap](https://github.com/soleo/homebrew-tap), by
 rendering `Formula/bogyman.rb` with `scripts/homebrew-formula.sh`. That job
 needs a `HOMEBREW_TAP_TOKEN` repository secret: a fine-grained token with
 Contents read and write on the tap repo only. Without it the job skips with a
@@ -216,7 +216,7 @@ notice. To update the tap by hand:
 
 ```sh
 gh release download v0.2.0 -p SHA256SUMS
-scripts/homebrew-formula.sh 0.2.0 SHA256SUMS > ../homebrew-bogyman/Formula/bogyman.rb
+scripts/homebrew-formula.sh 0.2.0 SHA256SUMS > ../homebrew-tap/Formula/bogyman.rb
 ```
 
 Crates: `bogyman-core` (session model, events, reducer), `bogyman-store`
